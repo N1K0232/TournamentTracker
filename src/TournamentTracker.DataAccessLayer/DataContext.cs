@@ -1,6 +1,5 @@
 ﻿using System.Reflection;
 using Microsoft.EntityFrameworkCore;
-using TournamentTracker.DataAccessLayer.Entities;
 using TournamentTracker.DataAccessLayer.Entities.Common;
 
 namespace TournamentTracker.DataAccessLayer;

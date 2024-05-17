@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using TournamentTracker.DataAccessLayer.Entities;
+using TournamentTracker.DataAccessLayer.Entities.Common;
 
 namespace TournamentTracker.DataAccessLayer.Configurations.Common;
 

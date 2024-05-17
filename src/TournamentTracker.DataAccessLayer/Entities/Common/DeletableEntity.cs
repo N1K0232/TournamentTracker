@@ -1,6 +1,4 @@
-﻿using TournamentTracker.DataAccessLayer.Entities.Common;
-
-namespace TournamentTracker.DataAccessLayer.Entities;
+﻿namespace TournamentTracker.DataAccessLayer.Entities.Common;
 
 public abstract class DeletableEntity : BaseEntity
 {
