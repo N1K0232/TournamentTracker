@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 using Microsoft.OpenApi.Models;
@@ -13,11 +14,14 @@ using Polly.Retry;
 using Polly.Timeout;
 using TinyHelpers.AspNetCore.Extensions;
 using TinyHelpers.AspNetCore.Swagger;
+using TinyHelpers.Extensions;
 using TinyHelpers.Json.Serialization;
 using TournamentTracker.BusinessLayer.Settings;
+using TournamentTracker.DataAccessLayer;
 using TournamentTracker.ExceptionHandlers;
 using TournamentTracker.Extensions;
 using TournamentTracker.Http;
+using TournamentTracker.StorageProviders.Extensions;
 using TournamentTracker.Swagger;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -123,6 +127,34 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
             options.AddDefaultResponse();
             options.AddAcceptLanguageHeader();
             options.AddFormFile();
+        });
+    }
+
+    services.AddDbContext<IDataContext, DataContext>(options =>
+    {
+        var connectionString = configuration.GetConnectionString("SqlConnection");
+        options.UseSqlServer(connectionString, sqlOptions =>
+        {
+            sqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+            sqlOptions.CommandTimeout(appSettings.CommandTimeout);
+            sqlOptions.EnableRetryOnFailure(appSettings.MaxRetryCount, appSettings.MaxRetryDelay, null);
+        });
+    });
+
+    var azureStorageConnectionString = configuration.GetConnectionString("AzureStorageConnection");
+    if (azureStorageConnectionString.HasValue() && appSettings.ContainerName.HasValue())
+    {
+        services.AddAzureStorage(options =>
+        {
+            options.UseConnectionString(azureStorageConnectionString);
+            options.UseContainerName(appSettings.ContainerName);
+        });
+    }
+    else
+    {
+        services.AddFileSystemStorage(options =>
+        {
+            options.UseStorageFolder(appSettings.StorageFolder ?? AppContext.BaseDirectory);
         });
     }
 }
