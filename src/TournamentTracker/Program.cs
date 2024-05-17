@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -16,7 +17,10 @@ using TinyHelpers.AspNetCore.Extensions;
 using TinyHelpers.AspNetCore.Swagger;
 using TinyHelpers.Extensions;
 using TinyHelpers.Json.Serialization;
+using TournamentTracker.BusinessLayer.Diagnostics.BackgroundServices;
+using TournamentTracker.BusinessLayer.Diagnostics.HealthChecks;
 using TournamentTracker.BusinessLayer.Settings;
+using TournamentTracker.Core;
 using TournamentTracker.DataAccessLayer;
 using TournamentTracker.ExceptionHandlers;
 using TournamentTracker.Extensions;
@@ -47,6 +51,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
 
     services.AddRequestLocalization(appSettings.SupportedCultures);
     services.AddExceptionHandler<DefaultExceptionHandler>();
+    services.AddSingleton<HealthCheckWriter>();
 
     services.AddResiliencePipeline("timeout", (builder, context) =>
     {
@@ -157,6 +162,9 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
             options.UseStorageFolder(appSettings.StorageFolder ?? AppContext.BaseDirectory);
         });
     }
+
+    services.AddHealthChecks().AddCheck<SqlConnectionHealthCheck>("sql");
+    services.AddHostedService<SqlConnectionBackgroundService>();
 }
 
 void Configure(IApplicationBuilder app, IWebHostEnvironment environment, IServiceProvider services)
@@ -210,5 +218,13 @@ void Configure(IApplicationBuilder app, IWebHostEnvironment environment, IServic
     {
         endpoints.MapEndpoints();
         endpoints.MapRazorPages();
+        endpoints.MapHealthChecks("/healthchecks", new HealthCheckOptions
+        {
+            ResponseWriter = async (context, report) =>
+            {
+                var writer = services.GetRequiredService<HealthCheckWriter>();
+                await writer.WriteAsync(context, report);
+            }
+        });
     });
 }
