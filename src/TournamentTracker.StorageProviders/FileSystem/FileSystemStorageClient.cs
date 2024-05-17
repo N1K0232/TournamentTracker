@@ -53,5 +53,8 @@ public class FileSystemStorageClient(FileSystemStorageOptions options)
 
         await stream.CopyToAsync(fileStream, cancellationToken);
         await fileStream.FlushAsync(cancellationToken);
+
+        await stream.DisposeAsync();
+        await fileStream.DisposeAsync();
     }
 }
