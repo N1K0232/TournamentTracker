@@ -17,4 +17,9 @@
         <PackageReference Include="TinyHelpers" Version="3.1.5" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\TournamentTracker.DataAccessLayer\TournamentTracker.DataAccessLayer.csproj" />
+      <ProjectReference Include="..\TournamentTracker.StorageProviders\TournamentTracker.StorageProviders.csproj" />
+    </ItemGroup>
+
 </Project>

@@ -5,12 +5,20 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TournamentTracker", "src\TournamentTracker\TournamentTracker.csproj", "{B7C234C5-BC47-401E-AF90-EAD24DEC8C57}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TournamentTracker.BusinessLayer", "src\TournamentTracker.BusinessLayer\TournamentTracker.BusinessLayer.csproj", "{FB0B5CB6-D2AF-4123-BC73-1F1655C65875}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TournamentTracker.BusinessLayer", "src\TournamentTracker.BusinessLayer\TournamentTracker.BusinessLayer.csproj", "{FB0B5CB6-D2AF-4123-BC73-1F1655C65875}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{534BD88D-D0B8-47E2-AC9F-49C85CB5F3E1}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TournamentTracker.DataAccessLayer", "src\TournamentTracker.DataAccessLayer\TournamentTracker.DataAccessLayer.csproj", "{141CD3EF-DF49-4061-8E27-7C2ABE55848C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TournamentTracker.Shared", "src\TournamentTracker.Shared\TournamentTracker.Shared.csproj", "{FB4A231D-D4B3-4FFA-B1F3-3B24BE763DF5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TournamentTracker.StorageProviders", "src\TournamentTracker.StorageProviders\TournamentTracker.StorageProviders.csproj", "{0E06D79A-78D0-4A3F-9EFA-82822D0E3D24}"
+EndProject
+Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "TournamentTracker.Database", "src\TournamentTracker.Database\TournamentTracker.Database.sqlproj", "{2EFD4D6B-5952-491A-AF88-648DBA57C566}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -26,6 +34,24 @@ Global
 		{FB0B5CB6-D2AF-4123-BC73-1F1655C65875}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FB0B5CB6-D2AF-4123-BC73-1F1655C65875}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FB0B5CB6-D2AF-4123-BC73-1F1655C65875}.Release|Any CPU.Build.0 = Release|Any CPU
+		{141CD3EF-DF49-4061-8E27-7C2ABE55848C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{141CD3EF-DF49-4061-8E27-7C2ABE55848C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{141CD3EF-DF49-4061-8E27-7C2ABE55848C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{141CD3EF-DF49-4061-8E27-7C2ABE55848C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FB4A231D-D4B3-4FFA-B1F3-3B24BE763DF5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FB4A231D-D4B3-4FFA-B1F3-3B24BE763DF5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FB4A231D-D4B3-4FFA-B1F3-3B24BE763DF5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FB4A231D-D4B3-4FFA-B1F3-3B24BE763DF5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0E06D79A-78D0-4A3F-9EFA-82822D0E3D24}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0E06D79A-78D0-4A3F-9EFA-82822D0E3D24}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0E06D79A-78D0-4A3F-9EFA-82822D0E3D24}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0E06D79A-78D0-4A3F-9EFA-82822D0E3D24}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2EFD4D6B-5952-491A-AF88-648DBA57C566}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2EFD4D6B-5952-491A-AF88-648DBA57C566}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2EFD4D6B-5952-491A-AF88-648DBA57C566}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{2EFD4D6B-5952-491A-AF88-648DBA57C566}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2EFD4D6B-5952-491A-AF88-648DBA57C566}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2EFD4D6B-5952-491A-AF88-648DBA57C566}.Release|Any CPU.Deploy.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
