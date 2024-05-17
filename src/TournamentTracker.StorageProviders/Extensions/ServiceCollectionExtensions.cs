@@ -1,5 +1,6 @@
 ﻿using Azure.Storage.Blobs;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TournamentTracker.StorageProviders.Azure;
 using TournamentTracker.StorageProviders.Caching;
 using TournamentTracker.StorageProviders.FileSystem;
@@ -17,9 +18,9 @@ public static class ServiceCollectionExtensions
         configuration.Invoke(builder);
 
         var options = builder.Build();
-        services.AddScoped(_ => options);
+        services.TryAddScoped(_ => options);
 
-        services.AddScoped(_ => new BlobServiceClient(options.ConnectionString));
+        services.TryAddScoped(_ => new BlobServiceClient(options.ConnectionString));
         services.AddStorageProvider<AzureStorageProvider>();
 
         return services;
@@ -33,8 +34,8 @@ public static class ServiceCollectionExtensions
         var builder = new FileSystemStorageOptionsBuilder();
         configuration.Invoke(builder);
 
-        services.AddScoped(_ => builder.Build());
-        services.AddScoped<FileSystemStorageClient>();
+        services.TryAddScoped(_ => builder.Build());
+        services.TryAddScoped<FileSystemStorageClient>();
         services.AddStorageProvider<FileSystemStorageProvider>();
 
         return services;
@@ -43,7 +44,7 @@ public static class ServiceCollectionExtensions
     private static void AddStorageProvider<TStorageProvider>(this IServiceCollection services)
         where TStorageProvider : class, IStorageProvider
     {
-        services.AddSingleton<IStorageProviderCache, StorageProviderCache>();
-        services.AddScoped<IStorageProvider, TStorageProvider>();
+        services.TryAddSingleton<IStorageProviderCache, StorageProviderCache>();
+        services.TryAddScoped<IStorageProvider, TStorageProvider>();
     }
 }

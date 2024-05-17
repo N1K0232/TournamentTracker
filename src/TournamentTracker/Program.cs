@@ -153,15 +153,13 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
         });
     }
 
-    services.AddDbContext<IDataContext, DataContext>(options =>
+    var connectionString = configuration.GetConnectionString("SqlConnection");
+    services.AddScoped<IDataContext>(services => services.GetRequiredService<DataContext>());
+    services.AddSqlServer<DataContext>(connectionString, options =>
     {
-        var connectionString = configuration.GetConnectionString("SqlConnection");
-        options.UseSqlServer(connectionString, sqlOptions =>
-        {
-            sqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
-            sqlOptions.CommandTimeout(appSettings.CommandTimeout);
-            sqlOptions.EnableRetryOnFailure(appSettings.MaxRetryCount, appSettings.MaxRetryDelay, null);
-        });
+        options.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+        options.CommandTimeout(appSettings.CommandTimeout);
+        options.EnableRetryOnFailure(appSettings.MaxRetryCount, appSettings.MaxRetryDelay, null);
     });
 
     var azureStorageConnectionString = configuration.GetConnectionString("AzureStorageConnection");

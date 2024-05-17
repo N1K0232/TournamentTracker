@@ -52,9 +52,6 @@ public class FileSystemStorageClient(FileSystemStorageOptions options)
         var fileStream = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write);
 
         await stream.CopyToAsync(fileStream, cancellationToken);
-        await fileStream.FlushAsync(cancellationToken);
-
-        await stream.DisposeAsync();
         await fileStream.DisposeAsync();
     }
 }

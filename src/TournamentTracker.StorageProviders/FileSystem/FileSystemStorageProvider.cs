@@ -5,13 +5,11 @@ namespace TournamentTracker.StorageProviders.FileSystem;
 public class FileSystemStorageProvider : IStorageProvider
 {
     private readonly FileSystemStorageClient client;
-    private readonly FileSystemStorageOptions options;
     private readonly IStorageProviderCache cache;
 
-    public FileSystemStorageProvider(FileSystemStorageClient client, FileSystemStorageOptions options, IStorageProviderCache cache)
+    public FileSystemStorageProvider(FileSystemStorageClient client, IStorageProviderCache cache)
     {
         this.client = client;
-        this.options = options;
         this.cache = cache;
     }
 
@@ -19,6 +17,18 @@ public class FileSystemStorageProvider : IStorageProvider
     {
         await client.DeleteAsync(path, cancellationToken);
         await cache.DeleteAsync(path, cancellationToken);
+    }
+
+    public async Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default)
+    {
+        var cacheExists = await cache.ExistsAsync(path, cancellationToken);
+        if (!cacheExists)
+        {
+            var exists = await client.ExistsAsync(path, cancellationToken);
+            return exists;
+        }
+
+        return cacheExists;
     }
 
     public async Task<Stream?> ReadAsStreamAsync(string path, CancellationToken cancellationToken = default)
@@ -30,11 +40,6 @@ public class FileSystemStorageProvider : IStorageProvider
         }
 
         var stream = await client.OpenReadAsync(path, cancellationToken);
-        if (stream is not null)
-        {
-            await cache.SetAsync(path, stream, cancellationToken);
-        }
-
         return stream;
     }
 

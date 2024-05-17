@@ -4,6 +4,8 @@ public interface IStorageProvider
 {
     Task DeleteAsync(string path, CancellationToken cancellationToken = default);
 
+    Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default);
+
     Task<Stream?> ReadAsStreamAsync(string path, CancellationToken cancellationToken = default);
 
     async Task<string?> ReadAsStringAsync(string path, CancellationToken cancellationToken = default)
