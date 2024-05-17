@@ -20,7 +20,8 @@ public class AzureStorageProvider : IStorageProvider
 
     public async Task DeleteAsync(string path, CancellationToken cancellationToken = default)
     {
-        await client.DeleteBlobIfExistsAsync(path, cancellationToken: cancellationToken);
+        var blobContainerClient = client.GetBlobContainerClient(options.ContainerName);
+        await blobContainerClient.DeleteBlobIfExistsAsync(path, cancellationToken: cancellationToken);
         await cache.DeleteAsync(path, cancellationToken);
     }
 
