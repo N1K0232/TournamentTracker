@@ -5,6 +5,12 @@
     [StartDate]            DATE             NOT NULL,
     [CreationDate]         DATETIME         DEFAULT (getutcdate()) NOT NULL,
     [LastModificationDate] DATETIME         NULL,
+    [IsDeleted]            BIT              DEFAULT (0) NOT NULL,
+    [DeletedDate]          DATETIME         NULL,
+
     PRIMARY KEY CLUSTERED ([Id] ASC)
 );
 
+GO
+CREATE UNIQUE NONCLUSTERED INDEX [IX_Tournament]
+ON [dbo].[Tournaments]([Name], [EntryFee]);

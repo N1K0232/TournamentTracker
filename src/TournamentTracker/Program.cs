@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using System.Net;
 using System.Text.Json.Serialization;
+using FluentValidation;
+using FluentValidation.AspNetCore;
+using MicroElements.Swashbuckle.FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
@@ -19,7 +22,10 @@ using TinyHelpers.Extensions;
 using TinyHelpers.Json.Serialization;
 using TournamentTracker.BusinessLayer.Diagnostics.BackgroundServices;
 using TournamentTracker.BusinessLayer.Diagnostics.HealthChecks;
+using TournamentTracker.BusinessLayer.Mapping;
+using TournamentTracker.BusinessLayer.Services;
 using TournamentTracker.BusinessLayer.Settings;
+using TournamentTracker.BusinessLayer.Validations;
 using TournamentTracker.Core;
 using TournamentTracker.DataAccessLayer;
 using TournamentTracker.ExceptionHandlers;
@@ -103,6 +109,14 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
         options.ErrorResponseFormat = ErrorResponseFormat.List;
     });
 
+    services.AddAutoMapper(typeof(TournamentMapperProfile).Assembly);
+    services.AddValidatorsFromAssemblyContaining<SaveTournamentRequestValidator>();
+
+    services.AddFluentValidationAutoValidation(options =>
+    {
+        options.DisableDataAnnotationsValidation = true;
+    });
+
     services.ConfigureHttpJsonOptions(options =>
     {
         options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault;
@@ -132,6 +146,10 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
             options.AddDefaultResponse();
             options.AddAcceptLanguageHeader();
             options.AddFormFile();
+        })
+        .AddFluentValidationRulesToSwagger(options =>
+        {
+            options.SetNotNullableIfMinLengthGreaterThenZero = true;
         });
     }
 
@@ -165,6 +183,11 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
 
     services.AddHealthChecks().AddCheck<SqlConnectionHealthCheck>("sql");
     services.AddHostedService<SqlConnectionBackgroundService>();
+
+    services.Scan(scan => scan.FromAssemblyOf<TournamentService>()
+        .AddClasses(classes => classes.InNamespaceOf<TournamentService>())
+        .AsImplementedInterfaces()
+        .WithScopedLifetime());
 }
 
 void Configure(IApplicationBuilder app, IWebHostEnvironment environment, IServiceProvider services)
