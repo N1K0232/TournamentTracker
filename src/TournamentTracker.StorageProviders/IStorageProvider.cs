@@ -11,7 +11,7 @@ public interface IStorageProvider
     async Task<string?> ReadAsStringAsync(string path, CancellationToken cancellationToken = default)
     {
         var stream = await ReadAsStreamAsync(path, cancellationToken);
-        if (stream is null)
+        if(stream is null)
         {
             return null;
         }
