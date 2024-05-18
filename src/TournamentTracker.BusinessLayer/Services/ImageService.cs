@@ -13,19 +13,8 @@ using Entities = TournamentTracker.DataAccessLayer.Entities;
 
 namespace TournamentTracker.BusinessLayer.Services;
 
-public class ImageService : IImageService
+public class ImageService(IDataContext dataContext, IStorageProvider storageProvider, IMapper mapper) : IImageService
 {
-    private readonly IDataContext dataContext;
-    private readonly IStorageProvider storageProvider;
-    private readonly IMapper mapper;
-
-    public ImageService(IDataContext dataContext, IStorageProvider storageProvider, IMapper mapper)
-    {
-        this.dataContext = dataContext;
-        this.storageProvider = storageProvider;
-        this.mapper = mapper;
-    }
-
     public async Task<Result> DeleteAsync(Guid id)
     {
         try

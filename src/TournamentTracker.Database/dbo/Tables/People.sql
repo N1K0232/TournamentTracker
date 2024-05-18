@@ -8,22 +8,19 @@
     [EmailAddress]         VARCHAR (512)    NOT NULL,
     [CreationDate]         DATETIME         DEFAULT (getutcdate()) NOT NULL,
     [LastModificationDate] DATETIME         NULL,
+
     PRIMARY KEY CLUSTERED ([Id] ASC),
     FOREIGN KEY ([TeamId]) REFERENCES [dbo].[Teams] ([Id])
 );
-
 
 GO
 CREATE UNIQUE NONCLUSTERED INDEX [IX_CellphoneNumber]
     ON [dbo].[People]([CellphoneNumber] ASC);
 
-
 GO
 CREATE UNIQUE NONCLUSTERED INDEX [IX_EmailAddress]
     ON [dbo].[People]([EmailAddress] ASC);
 
-
 GO
 CREATE UNIQUE NONCLUSTERED INDEX [IX_TeamMember]
     ON [dbo].[People]([TeamId] ASC, [FirstName] ASC, [LastName] ASC);
-

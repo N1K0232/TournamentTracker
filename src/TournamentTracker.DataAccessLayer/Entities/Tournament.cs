@@ -9,4 +9,6 @@ public class Tournament : DeletableEntity
     public decimal EntryFee { get; set; }
 
     public DateOnly StartDate { get; set; }
+
+    public virtual ICollection<Team> Teams { get; set; }
 }

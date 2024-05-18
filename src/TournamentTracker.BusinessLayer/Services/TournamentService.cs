@@ -11,17 +11,8 @@ using Entities = TournamentTracker.DataAccessLayer.Entities;
 
 namespace TournamentTracker.BusinessLayer.Services;
 
-public class TournamentService : ITournamentService
+public class TournamentService(IDataContext dataContext, IMapper mapper) : ITournamentService
 {
-    private readonly IDataContext dataContext;
-    private readonly IMapper mapper;
-
-    public TournamentService(IDataContext dataContext, IMapper mapper)
-    {
-        this.dataContext = dataContext;
-        this.mapper = mapper;
-    }
-
     public async Task<Result> DeleteAsync(Guid id)
     {
         try
@@ -49,6 +40,8 @@ public class TournamentService : ITournamentService
         if (dbTournament is not null)
         {
             var tournament = mapper.Map<Tournament>(dbTournament);
+            tournament.EnteredTeams = await GetTeamsAsync(id);
+
             return tournament;
         }
 
@@ -68,6 +61,11 @@ public class TournamentService : ITournamentService
         var tournaments = await query.ProjectTo<Tournament>(mapper.ConfigurationProvider)
             .Skip(pageIndex * itemsPerPage).Take(itemsPerPage + 1)
             .ToListAsync();
+
+        await tournaments.ForEachAsync(async (tournament) =>
+        {
+            tournament.EnteredTeams = await GetTeamsAsync(tournament.Id);
+        });
 
         var result = new ListResult<Tournament>
         {
@@ -118,5 +116,40 @@ public class TournamentService : ITournamentService
         {
             return Result.Fail(FailureReasons.DatabaseError, ex);
         }
+    }
+
+    private async Task<ListResult<Team>> GetTeamsAsync(Guid id)
+    {
+        var query = dataContext.GetData<Entities.Team>().Where(t => t.TournamentId == id);
+        var totalCount = await query.LongCountAsync();
+        var teams = await query.ProjectTo<Team>(mapper.ConfigurationProvider).ToListAsync();
+
+        await teams.ForEachAsync(async (team) =>
+        {
+            team.Members = await GetMembersAsync(team.Id);
+        });
+
+        var result = new ListResult<Team>
+        {
+            Content = teams,
+            TotalCount = totalCount
+        };
+
+        return result;
+    }
+
+    private async Task<ListResult<Person>> GetMembersAsync(Guid id)
+    {
+        var query = dataContext.GetData<Entities.Person>().Where(p => p.TeamId == id);
+        var totalCount = await query.LongCountAsync();
+        var people = await query.ProjectTo<Person>(mapper.ConfigurationProvider).ToListAsync();
+
+        var result = new ListResult<Person>
+        {
+            Content = people,
+            TotalCount = totalCount
+        };
+
+        return result;
     }
 }
