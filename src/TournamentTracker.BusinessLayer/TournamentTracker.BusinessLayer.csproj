@@ -18,6 +18,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\TournamentTracker.Core\TournamentTracker.Core.csproj" />
       <ProjectReference Include="..\TournamentTracker.DataAccessLayer\TournamentTracker.DataAccessLayer.csproj" />
       <ProjectReference Include="..\TournamentTracker.StorageProviders\TournamentTracker.StorageProviders.csproj" />
     </ItemGroup>
