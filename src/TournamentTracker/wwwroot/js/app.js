@@ -4,6 +4,18 @@
     );
 }
 
+function dataURIToBlob(dataURI) {
+    const splitDataURI = dataURI.split(',')
+    const byteString = splitDataURI[0].indexOf('base64') >= 0 ? atob(splitDataURI[1]) : decodeURI(splitDataURI[1])
+    const mimeString = splitDataURI[0].split(':')[1].split(';')[0]
+
+    const ia = new Uint8Array(byteString.length)
+    for (let i = 0; i < byteString.length; i++)
+        ia[i] = byteString.charCodeAt(i)
+
+    return new Blob([ia], { type: mimeString })
+}
+
 function GetErrorMessage(statusCode, content) {
     if (statusCode >= 200 && statusCode <= 299)
         return null;
@@ -22,6 +34,7 @@ function sleep(time) {
 }
 
 async function copyToClipboard(element, text) {
+
     let tooltip = bootstrap.Tooltip.getInstance(element);
     tooltip.hide();
 
@@ -38,4 +51,18 @@ async function copyToClipboard(element, text) {
     // Resets the tooltip title
     element.setAttribute('data-bs-title', 'Copy to clipboard');
     new bootstrap.Tooltip(element);
+}
+
+async function createTournamentAsync(name, entryFee, startDate) {
+
+    const request = { name: name, entryFee: entryFee, startDate: startDate }
+    const response = await fetch("/api/tournaments", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(request)
+    });
+
+    return response;
 }
