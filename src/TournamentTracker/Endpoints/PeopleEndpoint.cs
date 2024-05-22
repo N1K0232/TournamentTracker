@@ -1,6 +1,7 @@
 ﻿using MinimalHelpers.Routing;
 using OperationResults.AspNetCore.Http;
 using TournamentTracker.BusinessLayer.Services.Interfaces;
+using TournamentTracker.Extensions;
 using TournamentTracker.Shared.Models;
 using TournamentTracker.Shared.Models.Collections;
 using TournamentTracker.Shared.Models.Requests;
@@ -31,11 +32,13 @@ public class PeopleEndpoint : IEndpointRouteHandlerBuilder
             .WithOpenApi();
 
         peopleApiGroup.MapPost(string.Empty, CreateAsync)
+            .WithValidation<SavePersonRequest>()
             .Produces<Person>(StatusCodes.Status201Created)
             .Produces(StatusCodes.Status400BadRequest)
             .WithOpenApi();
 
         peopleApiGroup.MapPut("{id:guid}", UpdateAsync)
+            .WithValidation<SavePersonRequest>()
             .Produces<Person>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status404NotFound)

@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using MinimalHelpers.Routing;
+﻿using MinimalHelpers.Routing;
 using OperationResults.AspNetCore.Http;
 using TournamentTracker.BusinessLayer.Services.Interfaces;
+using TournamentTracker.Extensions;
 using TournamentTracker.Shared.Models;
 using TournamentTracker.Shared.Models.Collections;
 using TournamentTracker.Shared.Models.Requests;
@@ -36,12 +32,14 @@ public class TeamsEndpoint : IEndpointRouteHandlerBuilder
             .WithOpenApi();
 
         teamsApiGroup.MapPost(string.Empty, CreateAsync)
-            .Produces<Person>(StatusCodes.Status201Created)
+            .WithValidation<SaveTeamRequest>()
+            .Produces<Team>(StatusCodes.Status201Created)
             .Produces(StatusCodes.Status400BadRequest)
             .WithOpenApi();
 
         teamsApiGroup.MapPut("{id:guid}", UpdateAsync)
-            .Produces<Person>(StatusCodes.Status200OK)
+            .WithValidation<SaveTeamRequest>()
+            .Produces<Team>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status404NotFound)
             .WithOpenApi();
