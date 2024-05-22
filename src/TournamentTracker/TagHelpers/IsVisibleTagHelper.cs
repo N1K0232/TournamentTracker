@@ -11,11 +11,17 @@ public class IsVisibleTagHelper : TagHelper
 
     public override async Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
     {
+        await SuppressOutputAsync(output);
+        await base.ProcessAsync(context, output);
+    }
+
+    private Task SuppressOutputAsync(TagHelperOutput output)
+    {
         if (!IsVisible)
         {
             output.SuppressOutput();
         }
 
-        await base.ProcessAsync(context, output);
+        return Task.CompletedTask;
     }
 }

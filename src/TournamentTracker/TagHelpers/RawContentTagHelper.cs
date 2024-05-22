@@ -8,12 +8,12 @@ public class RawContentTagHelper : TagHelper
 {
     public override async Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
     {
-        var content = await output.GetChildContentAsync(NullHtmlEncoder.Default);
-        var html = content.GetContent(NullHtmlEncoder.Default);
+        var childContent = await output.GetChildContentAsync(NullHtmlEncoder.Default);
+        var content = childContent.GetContent(NullHtmlEncoder.Default);
 
-        var sanitizedHtml = HtmlContentSanitification.Sanitize(html);
+        var html = HtmlContentSanitification.Sanitize(content);
         output.TagName = null;
-        output.Content.SetHtmlContent(sanitizedHtml);
+        output.Content.SetHtmlContent(html);
 
         await base.ProcessAsync(context, output);
     }

@@ -26,27 +26,8 @@ public static class HtmlContentSanitification
         htmlSanitizer.AllowedAtRules.Add(CssRuleType.Keyframe);
         htmlSanitizer.AllowedAtRules.Add(CssRuleType.Page);
 
-        htmlSanitizer.RemovingTag += (s, e) =>
-        {
-            if (e.Tag is SvgElement)
-            {
-                e.Cancel = true;
-            }
-            else
-            {
-                // Add exceptions for Video IFrame sources.
-                if (e.Tag.NodeName.EqualsIgnoreCase("iframe"))
-                {
-                    var src = e.Tag.GetAttribute("src");
-                    if (src.ContainsIgnoreCase("youtube"))
-                    {
-                        e.Cancel = true;
-                    }
-                }
-            }
-        };
-
-        htmlSanitizer.RemovingAttribute += (s, e) => e.Cancel = e.Tag is SvgElement;
+        htmlSanitizer.RemovingTag += new EventHandler<RemovingTagEventArgs>(OnRemovingTag);
+        htmlSanitizer.RemovingAttribute += new EventHandler<RemovingAttributeEventArgs>(OnRemovingAttribute);
     }
 
     public static string Sanitize(string html)
@@ -58,5 +39,30 @@ public static class HtmlContentSanitification
 
         var sanitizedHtml = htmlSanitizer.Sanitize(html);
         return sanitizedHtml;
+    }
+
+    private static void OnRemovingAttribute(object sender, RemovingAttributeEventArgs handler)
+    {
+        handler.Cancel = handler.Tag is SvgElement;
+    }
+
+    private static void OnRemovingTag(object sender, RemovingTagEventArgs handler)
+    {
+        if (handler.Tag is SvgElement)
+        {
+            handler.Cancel = true;
+        }
+        else
+        {
+            // Add exceptions for Video IFrame sources.
+            if (handler.Tag.NodeName.EqualsIgnoreCase("iframe"))
+            {
+                var source = handler.Tag.GetAttribute("src");
+                if (source.ContainsIgnoreCase("youtube"))
+                {
+                    handler.Cancel = true;
+                }
+            }
+        }
     }
 }
