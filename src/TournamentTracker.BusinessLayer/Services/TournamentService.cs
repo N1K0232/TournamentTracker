@@ -41,6 +41,7 @@ public class TournamentService(IDataContext dataContext, IMapper mapper) : ITour
         {
             var tournament = mapper.Map<Tournament>(dbTournament);
             tournament.EnteredTeams = await GetTeamsAsync(id);
+            tournament.Prizes = await GetPrizesAsync(id);
 
             return tournament;
         }
@@ -65,6 +66,7 @@ public class TournamentService(IDataContext dataContext, IMapper mapper) : ITour
         await tournaments.ForEachAsync(async (tournament) =>
         {
             tournament.EnteredTeams = await GetTeamsAsync(tournament.Id);
+            tournament.Prizes = await GetPrizesAsync(tournament.Id);
         });
 
         var result = new ListResult<Tournament>
@@ -151,5 +153,14 @@ public class TournamentService(IDataContext dataContext, IMapper mapper) : ITour
         };
 
         return result;
+    }
+
+    private async Task<IEnumerable<Prize>> GetPrizesAsync(Guid id)
+    {
+        var query = dataContext.GetData<Entities.Prize>().Where(p => p.TournamentId == id);
+        var prizes = await query.ProjectTo<Prize>(mapper.ConfigurationProvider)
+            .ToListAsync();
+
+        return prizes;
     }
 }

@@ -12,4 +12,6 @@ public class Tournament : BaseObject
     public DateOnly StartDate { get; set; }
 
     public ListResult<Team>? EnteredTeams { get; set; }
+
+    public IEnumerable<Prize>? Prizes { get; set; }
 }

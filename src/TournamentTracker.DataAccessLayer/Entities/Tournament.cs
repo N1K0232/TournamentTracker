@@ -11,4 +11,6 @@ public class Tournament : DeletableEntity
     public DateOnly StartDate { get; set; }
 
     public virtual ICollection<Team> Teams { get; set; }
+
+    public virtual ICollection<Prize> Prizes { get; set; }
 }

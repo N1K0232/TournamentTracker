@@ -66,6 +66,7 @@
     <Build Include="dbo\Tables\Teams.sql" />
     <Build Include="dbo\Tables\Tournaments.sql" />
     <Build Include="dbo\Tables\Images.sql" />
+    <Build Include="dbo\Tables\Prizes.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="TournamentTracker.Database.publish.xml" />
