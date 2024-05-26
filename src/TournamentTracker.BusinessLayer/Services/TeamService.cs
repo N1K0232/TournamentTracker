@@ -5,6 +5,7 @@ using OperationResults;
 using TinyHelpers.Extensions;
 using TournamentTracker.BusinessLayer.Services.Interfaces;
 using TournamentTracker.DataAccessLayer;
+using TournamentTracker.DataAccessLayer.Extensions;
 using TournamentTracker.Shared.Models;
 using TournamentTracker.Shared.Models.Collections;
 using TournamentTracker.Shared.Models.Requests;
@@ -57,19 +58,13 @@ public class TeamService(IDataContext dataContext, IMapper mapper) : ITeamServic
             .Skip(pageIndex * itemsPerPage).Take(itemsPerPage + 1)
             .ToListAsync();
 
+        var hasNextPage = await query.HasNextPageAsync(pageIndex, itemsPerPage);
         await teams.ForEachAsync(async (team) =>
         {
             team.Members = await GetMembersAsync(team.Id);
         });
 
-        var result = new ListResult<Team>
-        {
-            Content = teams.Take(itemsPerPage),
-            TotalCount = totalCount,
-            HasNextPage = teams.Count > itemsPerPage
-        };
-
-        return result;
+        return new ListResult<Team>(teams.Take(itemsPerPage), totalCount, hasNextPage);
     }
 
     public async Task<Result<Team>> CreateAsync(SaveTeamRequest request)
@@ -119,12 +114,6 @@ public class TeamService(IDataContext dataContext, IMapper mapper) : ITeamServic
         var totalCount = await query.LongCountAsync();
         var people = await query.ProjectTo<Person>(mapper.ConfigurationProvider).ToListAsync();
 
-        var result = new ListResult<Person>
-        {
-            Content = people,
-            TotalCount = totalCount
-        };
-
-        return result;
+        return new ListResult<Person>(people, totalCount);
     }
 }

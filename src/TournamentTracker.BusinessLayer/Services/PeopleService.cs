@@ -6,6 +6,7 @@ using OperationResults;
 using TinyHelpers.Extensions;
 using TournamentTracker.BusinessLayer.Services.Interfaces;
 using TournamentTracker.DataAccessLayer;
+using TournamentTracker.DataAccessLayer.Extensions;
 using TournamentTracker.Shared.Models;
 using TournamentTracker.Shared.Models.Collections;
 using TournamentTracker.Shared.Models.Requests;
@@ -58,14 +59,8 @@ public class PeopleService(IDataContext dataContext, IMapper mapper) : IPeopleSe
             .OrderBy(orderBy).Skip(pageIndex * itemsPerPage).Take(itemsPerPage + 1)
             .ToListAsync();
 
-        var result = new ListResult<Person>
-        {
-            Content = people.Take(itemsPerPage),
-            TotalCount = totalCount,
-            HasNextPage = people.Count > itemsPerPage
-        };
-
-        return result;
+        var hasNextPage = await query.HasNextPageAsync(pageIndex, itemsPerPage);
+        return new ListResult<Person>(people.Take(itemsPerPage), totalCount);
     }
 
     public async Task<Result<Person>> CreateAsync(SavePersonRequest request)

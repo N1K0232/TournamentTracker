@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using OperationResults;
 using TinyHelpers.Extensions;
 using TournamentTracker.DataAccessLayer;
+using TournamentTracker.DataAccessLayer.Extensions;
 using TournamentTracker.Shared.Models;
 using TournamentTracker.Shared.Models.Collections;
 using TournamentTracker.Shared.Models.Requests;
@@ -60,23 +61,18 @@ public class TournamentService(IDataContext dataContext, IMapper mapper) : ITour
 
         var totalCount = await query.LongCountAsync();
         var tournaments = await query.ProjectTo<Tournament>(mapper.ConfigurationProvider)
+            .OrderBy(t => t.Name)
             .Skip(pageIndex * itemsPerPage).Take(itemsPerPage + 1)
             .ToListAsync();
 
+        var hasNextPage = await query.HasNextPageAsync(pageIndex, itemsPerPage);
         await tournaments.ForEachAsync(async (tournament) =>
         {
             tournament.EnteredTeams = await GetTeamsAsync(tournament.Id);
             tournament.Prizes = await GetPrizesAsync(tournament.Id);
         });
 
-        var result = new ListResult<Tournament>
-        {
-            Content = tournaments.Take(itemsPerPage),
-            TotalCount = totalCount,
-            HasNextPage = tournaments.Count > itemsPerPage
-        };
-
-        return result;
+        return new ListResult<Tournament>(tournaments.Take(itemsPerPage), totalCount, hasNextPage);
     }
 
     public async Task<Result<Tournament>> CreateAsync(SaveTournamentRequest request)
@@ -131,13 +127,7 @@ public class TournamentService(IDataContext dataContext, IMapper mapper) : ITour
             team.Members = await GetMembersAsync(team.Id);
         });
 
-        var result = new ListResult<Team>
-        {
-            Content = teams,
-            TotalCount = totalCount
-        };
-
-        return result;
+        return new ListResult<Team>(teams, totalCount);
     }
 
     private async Task<ListResult<Person>> GetMembersAsync(Guid id)
@@ -146,13 +136,7 @@ public class TournamentService(IDataContext dataContext, IMapper mapper) : ITour
         var totalCount = await query.LongCountAsync();
         var people = await query.ProjectTo<Person>(mapper.ConfigurationProvider).ToListAsync();
 
-        var result = new ListResult<Person>
-        {
-            Content = people,
-            TotalCount = totalCount
-        };
-
-        return result;
+        return new ListResult<Person>(people, totalCount);
     }
 
     private async Task<IEnumerable<Prize>> GetPrizesAsync(Guid id)
