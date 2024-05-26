@@ -6,6 +6,8 @@ public class AppSettings
 
     public string ApplicationDescription { get; init; }
 
+    public string BaseUrl { get; init; }
+
     public int CommandTimeout { get; init; }
 
     public string ContainerName { get; init; }
