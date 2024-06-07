@@ -197,8 +197,8 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
         });
     }
 
-    services.AddHealthChecks().AddCheck<SqlConnectionHealthCheck>("sql");
     services.AddHostedService<SqlConnectionBackgroundService>();
+    services.AddHealthChecks().AddDbContextCheck<DataContext>("entityframework").AddCheck<SqlConnectionHealthCheck>("sql");
 
     services.Scan(scan => scan.FromAssemblyOf<TournamentService>()
         .AddClasses(classes => classes.InNamespaceOf<TournamentService>())
@@ -260,7 +260,7 @@ void Configure(IApplicationBuilder app, IWebHostEnvironment environment, IServic
     {
         endpoints.MapEndpoints();
         endpoints.MapRazorPages();
-        endpoints.MapHealthChecks("/healthchecks", new HealthCheckOptions
+        endpoints.MapHealthChecks("/status", new HealthCheckOptions
         {
             ResponseWriter = async (context, report) =>
             {
