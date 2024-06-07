@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Mime;
 using System.Text.Json.Serialization;
 using FluentValidation;
 using FluentValidation.AspNetCore;
@@ -16,6 +18,8 @@ using OperationResults.AspNetCore.Http;
 using Polly;
 using Polly.Retry;
 using Polly.Timeout;
+using Refit;
+using Serilog;
 using TinyHelpers.AspNetCore.Extensions;
 using TinyHelpers.AspNetCore.Swagger;
 using TinyHelpers.Extensions;
@@ -26,6 +30,7 @@ using TournamentTracker.BusinessLayer.Mapping;
 using TournamentTracker.BusinessLayer.Services;
 using TournamentTracker.BusinessLayer.Settings;
 using TournamentTracker.BusinessLayer.Validations;
+using TournamentTracker.Client;
 using TournamentTracker.Core;
 using TournamentTracker.DataAccessLayer;
 using TournamentTracker.ExceptionHandlers;
@@ -46,6 +51,11 @@ await app.RunAsync();
 
 void ConfigureServices(IServiceCollection services, IConfiguration configuration, IWebHostEnvironment environment, IHostBuilder host)
 {
+    host.UseSerilog((hostingContext, loggerConfiguration) =>
+    {
+        loggerConfiguration.ReadFrom.Configuration(hostingContext.Configuration);
+    });
+
     var appSettings = services.ConfigureAndGet<AppSettings>(configuration, nameof(AppSettings));
     var swaggerSettings = services.ConfigureAndGet<SwaggerSettings>(configuration, nameof(SwaggerSettings));
 
@@ -103,6 +113,14 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
 
     services.AddTransient<TransientErrorDelegatingHandler>();
     services.AddHttpClient("http").AddHttpMessageHandler<TransientErrorDelegatingHandler>();
+
+    services.AddRefitClient<ITournamentsClient>()
+        .ConfigureHttpClient(client =>
+        {
+            client.BaseAddress = new Uri(appSettings.BaseUrl);
+            client.DefaultRequestHeaders.Accept.Clear();
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(MediaTypeNames.Application.Json));
+        });
 
     services.AddOperationResult(options =>
     {
@@ -212,19 +230,18 @@ void Configure(IApplicationBuilder app, IWebHostEnvironment environment, IServic
         builder.UseStatusCodePagesWithReExecute("/Errors/{0}");
     });
 
+    app.UseStaticFiles();
+    app.UseDefaultFiles();
+
     app.UseWhen(context => context.IsApiRequest(), builder =>
     {
         builder.UseExceptionHandler();
         builder.UseStatusCodePages();
     });
 
-    app.UseStaticFiles();
-    app.UseDefaultFiles();
-
     if (swaggerSettings.Enabled)
     {
         app.UseMiddleware<SwaggerAuthenticationMiddleware>();
-
         app.UseSwagger();
         app.UseSwaggerUI(options =>
         {
@@ -234,6 +251,10 @@ void Configure(IApplicationBuilder app, IWebHostEnvironment environment, IServic
     }
 
     app.UseAuthorization();
+    app.UseSerilogRequestLogging(options =>
+    {
+        options.IncludeQueryInRequestPath = true;
+    });
 
     app.UseEndpoints(endpoints =>
     {

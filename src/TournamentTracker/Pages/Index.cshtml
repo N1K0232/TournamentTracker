@@ -6,4 +6,57 @@
     ViewData["Title"] = "Home page";
 }
 
-<a asp-page="/CreateTournament">Create new</a>
+<div x-data="tournaments">
+    <div>
+        <form method="get" x-on:submit.prevent>
+            <label for="name">Name</label>
+            <input name="name" type="text" x-model="name" /><br />
+            <label for="pageIndex" class="mt-2">Page index</label>
+            <input name="pageIndex" class="mt-2" type="text" x-model="pageIndex" /><br />
+            <label for="itemsPerPage" class="mt-2">Items per page</label>
+            <input name="itemsPerPage" class="mt-2" type="text" x-model="itemsPerPage"/><br />
+            <button type="submit" class="btn btn-primary mt-2" x-on:click="getList()">Search</button>
+        </form>
+    </div>
+    <div class="mt-3">
+        <button type="button" class="btn btn-primary" x-on:click="document.location.href='/CreateTournament'">New</button>
+    </div>
+    <div class="mt-3" x-cloak x-init="getList()">
+        <h5 x-show="isBusy">Loading...</h5>
+        <table class="table" x-show="!isBusy">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Entry fee</th>
+                    <th>Start date</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="tournament in tournaments">
+                    <tr>
+                        <td x-text="tournament.name"></td>
+                        <td x-text="tournament.entryFee"></td>
+                        <td x-text="tournament.startDate"></td>
+                        <td>
+                            <button class="btn btn-danger" x-on:click.prevent="delete('tournament.id')">Delete</button> |
+                            <button class="btn btn-info" x-on:click.prevent="get('tournament.id')">Details</button> |
+                            <a href="/UpdateTournament">Update</a>
+                        </td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+    </div>
+    <div>
+        <p>Total items:</p> <strong x-text="totalCount"></strong>
+    </div>
+</div>
+
+@section Scripts
+{
+    <script>
+        document.addEventListener("alpine:init", () => {
+            tournaments('@Thread.CurrentThread.CurrentCulture.TwoLetterISOLanguageName');
+        });
+    </script>
+}

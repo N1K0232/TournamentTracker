@@ -53,16 +53,7 @@ async function copyToClipboard(element, text) {
     new bootstrap.Tooltip(element);
 }
 
-async function createTournamentAsync(name, entryFee, startDate) {
+function redirectoToPage(page) {
 
-    const request = { name: name, entryFee: entryFee, startDate: startDate }
-    const response = await fetch("/api/tournaments", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(request)
-    });
-
-    return response;
+    window.location.href = page;
 }

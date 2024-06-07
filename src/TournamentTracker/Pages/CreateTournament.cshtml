@@ -6,19 +6,31 @@
     ViewData["Title"] = "Create tournament";
 }
 
-<form id="Tournaments" method="post">
-    <div class="form-row align-items-center justify-content-center mt-5">
-        <div class="col-auto mt-2">
-            <input type="text" class="form-control" name="Name" placeholder="Tournament name" />
+<div x-data="tournaments">
+    <form x-on:submit.prevent>
+        <div class="form-row align-items-center justify-content-center mt-5">
+            <div class="col-auto mt-2">
+                <input type="text" class="form-control" x-model="name" placeholder="Tournament name" />
+            </div>
+            <div class="col-auto mt-2">
+                <input type="text" class="form-control" x-model="entryFee" placeholder="Entry fee" />
+            </div>
+            <div class="col-auto mt-2">
+                <input type="date" class="form-control" x-model="startDate" />
+            </div>
+            <div class="col-auto ml-2 mt-2">
+                <button type="submit" class="btn btn-primary mt-1" x-on:click="create()" x-bind:disabled="invalidForm() || isBusy">Create</button>
+                <button type="button" class="btn btn-primary ms-2" x-on:click="reset()" x-bind:disabled="invalidForm() || isBusy">Reset</button>
+            </div>
         </div>
-        <div class="col-auto mt-2">
-            <input type="text" class="form-control" name="EntryFee" placeholder="Entry fee" />
-        </div>
-        <div class="col-auto mt-2">
-            <input type="date" class="form-control" name="StartDate" />
-        </div>
-        <div class="col-auto ml-2 mt-2">
-            <button type="submit" class="btn btn-primary" onclick="createAsync()">Create</button>
-        </div>
-    </div>
-</form>
+    </form>
+</div>
+
+@section Scripts
+{
+    <script>
+        document.addEventListener("alpine:init", () => {
+            tournaments('@Thread.CurrentThread.CurrentCulture.TwoLetterISOLanguageName');
+        });
+    </script>
+}

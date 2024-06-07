@@ -36,6 +36,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TournamentTracker.BusinessLayer\TournamentTracker.BusinessLayer.csproj" />
+    <ProjectReference Include="..\TournamentTracker.Client\TournamentTracker.Client.csproj" />
   </ItemGroup>
 
 </Project>

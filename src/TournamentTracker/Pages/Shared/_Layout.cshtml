@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" asp-append-version="true" />
 
     <script src="~/lib/alpinejs/persist/dist/cdn.min.js" asp-append-version="true" defer></script>
-    <script src="~/lib/alpinejs/cdn.min.js" asp-append-version="true" defer></script>
+    <script src="~/lib/alpine/cdn.min.js" asp-append-version="true" defer></script>
     <script src="~/lib/marked/marked.min.js" asp-append-version="true"></script>
 
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
@@ -74,27 +74,6 @@
 
     <script src="~/js/app.js" asp-append-version="true"></script>
     <script src="~/js/tournaments.js" asp-append-version="true"></script>
-
-    <script>
-        $(document).ready(function () {
-            const renderer = new marked.Renderer();
-            const linkRenderer = renderer.link;
-            renderer.link = (href, title, text) => {
-                const localLink = href.startsWith(`${location.protocol}//${location.hostname}`);
-                const html = linkRenderer.call(renderer, href, title, text);
-                return localLink ? html : html.replace(/^<a /, `<a target="_blank" rel="noreferrer noopener nofollow" `);
-            };
-
-            marked.use({
-                mangle: false,
-                headerIds: false,
-                renderer: renderer
-            });
-
-            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
-            const tooltipList = [...tooltipTriggerList].map(element => new bootstrap.Tooltip(element))
-        });
-    </script>
 
     @await RenderSectionAsync("Scripts", required: false)
 </body>

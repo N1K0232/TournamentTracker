@@ -1,0 +1,4 @@
+﻿@TournamentTracker_HostAddress = https://localhost:7238
+
+GET {{TournamentTracker_HostAddress}}/api/tournaments
+Accept: application/json

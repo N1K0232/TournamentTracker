@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace TournamentTracker.Pages;
 
-public class IndexModel : PageModel
+public class UpdateTournamentsModel : PageModel
 {
     public void OnGet()
     {
