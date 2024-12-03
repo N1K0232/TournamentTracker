@@ -177,7 +177,7 @@ app.UseWhen(context => context.IsApiRequest(), builder =>
 
 if (swagger.Enabled)
 {
-    app.UseMiddleware<SwaggerAuthenticationMiddleware>();
+    app.UseMiddleware<SwaggerBasicAuthenticationMiddleware>();
 
     app.UseSwagger();
     app.UseSwaggerUI(options =>
