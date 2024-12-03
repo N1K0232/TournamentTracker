@@ -1,61 +1,56 @@
-﻿using TournamentTracker.StorageProviders.Caching;
-
-namespace TournamentTracker.StorageProviders.FileSystem;
+﻿namespace TournamentTracker.StorageProviders.FileSystem;
 
 public class FileSystemStorageProvider : IStorageProvider
 {
-    private readonly FileSystemStorageClient client;
-    private readonly IStorageProviderCache cache;
+    private readonly FileSystemStorageOptions options;
 
-    public FileSystemStorageProvider(FileSystemStorageClient client, IStorageProviderCache cache)
+    public FileSystemStorageProvider(FileSystemStorageOptions options)
     {
-        this.client = client;
-        this.cache = cache;
+        this.options = options;
     }
 
-    public async Task DeleteAsync(string path, CancellationToken cancellationToken = default)
+    public Task DeleteAsync(string path, CancellationToken cancellationToken = default)
     {
-        await client.DeleteAsync(path, cancellationToken);
-        await cache.DeleteAsync(path, cancellationToken);
-    }
-
-    public async Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default)
-    {
-        var cacheExists = await cache.ExistsAsync(path, cancellationToken);
-        if (!cacheExists)
+        var fullPath = options.CreatePath(path);
+        if (File.Exists(fullPath))
         {
-            var exists = await client.ExistsAsync(path, cancellationToken);
-            return exists;
+            File.Delete(fullPath);
         }
 
-        return cacheExists;
+        return Task.CompletedTask;
     }
 
-    public async Task<Stream?> ReadAsStreamAsync(string path, CancellationToken cancellationToken = default)
+    public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default)
     {
-        var cachedStream = await cache.ReadAsync(path, cancellationToken);
-        if (cachedStream is not null)
-        {
-            return cachedStream;
-        }
+        var fullPath = options.CreatePath(path);
+        var exists = File.Exists(fullPath);
 
-        var stream = await client.OpenReadAsync(path, cancellationToken);
-        return stream;
+        return Task.FromResult(exists);
     }
 
-    public async Task SaveAsync(Stream stream, string path, bool overwrite = false, CancellationToken cancellationToken = default)
+    public Task<Stream> ReadAsStreamAsync(string path, CancellationToken cancellationToken = default)
     {
-        if (!overwrite)
+        var fullPath = options.CreatePath(path);
+        if (!File.Exists(fullPath))
         {
-            var exists = await client.ExistsAsync(path, cancellationToken);
-            if (exists)
-            {
-                throw new IOException($"The file {path} already exists");
-            }
+            return Task.FromResult<Stream>(null);
         }
 
-        await client.CreateDirectoryAsync(path, cancellationToken);
-        await client.SaveAsync(stream, path, cancellationToken);
-        await cache.SetAsync(path, stream, cancellationToken);
+        var stream = File.OpenRead(fullPath);
+        return Task.FromResult<Stream>(stream);
+    }
+
+    public async Task SaveAsync(Stream stream, string path, CancellationToken cancellationToken = default)
+    {
+        var fullPath = options.CreatePath(path);
+        var directoryName = Path.GetDirectoryName(fullPath);
+
+        if (!Directory.Exists(directoryName))
+        {
+            Directory.CreateDirectory(directoryName);
+        }
+
+        using var fileStream = File.OpenWrite(fullPath);
+        await stream.CopyToAsync(fileStream, cancellationToken);
     }
 }

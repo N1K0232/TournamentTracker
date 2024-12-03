@@ -141,10 +141,9 @@ function cleanupAttributes(el, names) {
   });
 }
 function cleanupElement(el) {
-  if (el._x_cleanups) {
-    while (el._x_cleanups.length)
-      el._x_cleanups.pop()();
-  }
+  el._x_effects?.forEach(dequeueJob);
+  while (el._x_cleanups?.length)
+    el._x_cleanups.pop()();
 }
 var observer = new MutationObserver(onMutate);
 var currentlyObserving = false;
@@ -192,7 +191,7 @@ function onMutate(mutations) {
     deferredMutations = deferredMutations.concat(mutations);
     return;
   }
-  let addedNodes = /* @__PURE__ */ new Set();
+  let addedNodes = [];
   let removedNodes = /* @__PURE__ */ new Set();
   let addedAttributes = /* @__PURE__ */ new Map();
   let removedAttributes = /* @__PURE__ */ new Map();
@@ -200,8 +199,24 @@ function onMutate(mutations) {
     if (mutations[i].target._x_ignoreMutationObserver)
       continue;
     if (mutations[i].type === "childList") {
-      mutations[i].addedNodes.forEach((node) => node.nodeType === 1 && addedNodes.add(node));
-      mutations[i].removedNodes.forEach((node) => node.nodeType === 1 && removedNodes.add(node));
+      mutations[i].removedNodes.forEach((node) => {
+        if (node.nodeType !== 1)
+          return;
+        if (!node._x_marker)
+          return;
+        removedNodes.add(node);
+      });
+      mutations[i].addedNodes.forEach((node) => {
+        if (node.nodeType !== 1)
+          return;
+        if (removedNodes.has(node)) {
+          removedNodes.delete(node);
+          return;
+        }
+        if (node._x_marker)
+          return;
+        addedNodes.push(node);
+      });
     }
     if (mutations[i].type === "attributes") {
       let el = mutations[i].target;
@@ -234,29 +249,15 @@ function onMutate(mutations) {
     onAttributeAddeds.forEach((i) => i(el, attrs));
   });
   for (let node of removedNodes) {
-    if (addedNodes.has(node))
+    if (addedNodes.some((i) => i.contains(node)))
       continue;
     onElRemoveds.forEach((i) => i(node));
   }
-  addedNodes.forEach((node) => {
-    node._x_ignoreSelf = true;
-    node._x_ignore = true;
-  });
   for (let node of addedNodes) {
-    if (removedNodes.has(node))
-      continue;
     if (!node.isConnected)
       continue;
-    delete node._x_ignoreSelf;
-    delete node._x_ignore;
     onElAddeds.forEach((i) => i(node));
-    node._x_ignore = true;
-    node._x_ignoreSelf = true;
   }
-  addedNodes.forEach((node) => {
-    delete node._x_ignoreSelf;
-    delete node._x_ignore;
-  });
   addedNodes = null;
   removedNodes = null;
   addedAttributes = null;
@@ -317,7 +318,7 @@ var mergeProxyTrap = {
     ) || objects[objects.length - 1];
     const descriptor = Object.getOwnPropertyDescriptor(target, name);
     if (descriptor?.set && descriptor?.get)
-      return Reflect.set(target, name, value, thisProxy);
+      return descriptor.set.call(thisProxy, value) || true;
     return Reflect.set(target, name, value);
   }
 };
@@ -400,26 +401,22 @@ function magic(name, callback) {
   magics[name] = callback;
 }
 function injectMagics(obj, el) {
+  let memoizedUtilities = getUtilities(el);
   Object.entries(magics).forEach(([name, callback]) => {
-    let memoizedUtilities = null;
-    function getUtilities() {
-      if (memoizedUtilities) {
-        return memoizedUtilities;
-      } else {
-        let [utilities, cleanup2] = getElementBoundUtilities(el);
-        memoizedUtilities = { interceptor, ...utilities };
-        onElRemoved(el, cleanup2);
-        return memoizedUtilities;
-      }
-    }
     Object.defineProperty(obj, `$${name}`, {
       get() {
-        return callback(el, getUtilities());
+        return callback(el, memoizedUtilities);
       },
       enumerable: false
     });
   });
   return obj;
+}
+function getUtilities(el) {
+  let [utilities, cleanup2] = getElementBoundUtilities(el);
+  let utils = { interceptor, ...utilities };
+  onElRemoved(el, cleanup2);
+  return utils;
 }
 
 // packages/alpinejs/src/utils/error.js
@@ -804,10 +801,16 @@ var initInterceptors2 = [];
 function interceptInit(callback) {
   initInterceptors2.push(callback);
 }
+var markerDispenser = 1;
 function initTree(el, walker = walk, intercept = () => {
 }) {
+  if (findClosest(el, (i) => i._x_ignore))
+    return;
   deferHandlingDirectives(() => {
     walker(el, (el2, skip) => {
+      if (el2._x_marker)
+        return;
+      el2._x_marker = markerDispenser++;
       intercept(el2, skip);
       initInterceptors2.forEach((i) => i(el2, skip));
       directives(el2, el2.attributes).forEach((handle) => handle());
@@ -817,8 +820,9 @@ function initTree(el, walker = walk, intercept = () => {
 }
 function destroyTree(root, walker = walk) {
   walker(root, (el) => {
-    cleanupAttributes(el);
     cleanupElement(el);
+    cleanupAttributes(el);
+    delete el._x_marker;
   });
 }
 function warnAboutMissingPlugins() {
@@ -1108,7 +1112,7 @@ window.Element.prototype._x_toggleAndCascadeWithTransitions = function(el, value
           let carry = Promise.all([
             el2._x_hidePromise,
             ...(el2._x_hideChildren || []).map(hideAfterChildren)
-          ]).then(([i]) => i());
+          ]).then(([i]) => i?.());
           delete el2._x_hidePromise;
           delete el2._x_hideChildren;
           return carry;
@@ -1325,7 +1329,7 @@ function bind(el, name, value, modifiers = []) {
   }
 }
 function bindInputValue(el, value) {
-  if (el.type === "radio") {
+  if (isRadio(el)) {
     if (el.attributes.value === void 0) {
       el.value = value;
     }
@@ -1336,7 +1340,7 @@ function bindInputValue(el, value) {
         el.checked = checkedAttrLooseCompare(el.value, value);
       }
     }
-  } else if (el.type === "checkbox") {
+  } else if (isCheckbox(el)) {
     if (Number.isInteger(value)) {
       el.value = value;
     } else if (!Array.isArray(value) && typeof value !== "boolean" && ![null, void 0].includes(value)) {
@@ -1412,34 +1416,37 @@ function safeParseBoolean(rawValue) {
   }
   return rawValue ? Boolean(rawValue) : null;
 }
+var booleanAttributes = /* @__PURE__ */ new Set([
+  "allowfullscreen",
+  "async",
+  "autofocus",
+  "autoplay",
+  "checked",
+  "controls",
+  "default",
+  "defer",
+  "disabled",
+  "formnovalidate",
+  "inert",
+  "ismap",
+  "itemscope",
+  "loop",
+  "multiple",
+  "muted",
+  "nomodule",
+  "novalidate",
+  "open",
+  "playsinline",
+  "readonly",
+  "required",
+  "reversed",
+  "selected",
+  "shadowrootclonable",
+  "shadowrootdelegatesfocus",
+  "shadowrootserializable"
+]);
 function isBooleanAttr(attrName) {
-  const booleanAttributes = [
-    "disabled",
-    "checked",
-    "required",
-    "readonly",
-    "open",
-    "selected",
-    "autofocus",
-    "itemscope",
-    "multiple",
-    "novalidate",
-    "allowfullscreen",
-    "allowpaymentrequest",
-    "formnovalidate",
-    "autoplay",
-    "controls",
-    "loop",
-    "muted",
-    "playsinline",
-    "default",
-    "ismap",
-    "reversed",
-    "async",
-    "defer",
-    "nomodule"
-  ];
-  return booleanAttributes.includes(attrName);
+  return booleanAttributes.has(attrName);
 }
 function attributeShouldntBePreservedIfFalsy(name) {
   return !["aria-pressed", "aria-checked", "aria-expanded", "aria-selected"].includes(name);
@@ -1471,6 +1478,12 @@ function getAttributeBinding(el, name, fallback) {
     return !![name, "true"].includes(attr);
   }
   return attr;
+}
+function isCheckbox(el) {
+  return el.type === "checkbox" || el.localName === "ui-checkbox" || el.localName === "ui-switch";
+}
+function isRadio(el) {
+  return el.type === "radio" || el.localName === "ui-radio";
 }
 
 // packages/alpinejs/src/utils/debounce.js
@@ -1550,10 +1563,10 @@ function store(name, value) {
     return stores[name];
   }
   stores[name] = value;
+  initInterceptors(stores[name]);
   if (typeof value === "object" && value !== null && value.hasOwnProperty("init") && typeof value.init === "function") {
     stores[name].init();
   }
-  initInterceptors(stores[name]);
 }
 function getStores() {
   return stores;
@@ -1641,7 +1654,7 @@ var Alpine = {
   get raw() {
     return raw;
   },
-  version: "3.13.10",
+  version: "3.14.5",
   flushAndStopDeferringMutations,
   dontAutoEvaluateFunctions,
   disableEffectScheduling,
@@ -2591,7 +2604,12 @@ directive("teleport", (el, { modifiers, expression }, { cleanup: cleanup2 }) => 
       placeInDom(el._x_teleport, target2, modifiers);
     });
   };
-  cleanup2(() => clone2.remove());
+  cleanup2(
+    () => mutateDom(() => {
+      clone2.remove();
+      destroyTree(clone2);
+    })
+  );
 });
 var teleportContainerDuringClone = document.createElement("div");
 function getTarget(expression) {
@@ -2683,14 +2701,14 @@ function on(el, event, modifiers, callback) {
     handler4 = wrapHandler(handler4, (next, e) => {
       e.target === el && next(e);
     });
-  handler4 = wrapHandler(handler4, (next, e) => {
-    if (isKeyEvent(event)) {
+  if (isKeyEvent(event) || isClickEvent(event)) {
+    handler4 = wrapHandler(handler4, (next, e) => {
       if (isListeningForASpecificKeyThatHasntBeenPressed(e, modifiers)) {
         return;
       }
-    }
-    next(e);
-  });
+      next(e);
+    });
+  }
   listenerTarget.addEventListener(event, handler4, options);
   return () => {
     listenerTarget.removeEventListener(event, handler4, options);
@@ -2715,9 +2733,12 @@ function kebabCase2(subject) {
 function isKeyEvent(event) {
   return ["keydown", "keyup"].includes(event);
 }
+function isClickEvent(event) {
+  return ["contextmenu", "click", "mouse"].some((i) => event.includes(i));
+}
 function isListeningForASpecificKeyThatHasntBeenPressed(e, modifiers) {
   let keyModifiers = modifiers.filter((i) => {
-    return !["window", "document", "prevent", "stop", "once", "capture"].includes(i);
+    return !["window", "document", "prevent", "stop", "once", "capture", "self", "away", "outside", "passive"].includes(i);
   });
   if (keyModifiers.includes("debounce")) {
     let debounceIndex = keyModifiers.indexOf("debounce");
@@ -2741,6 +2762,8 @@ function isListeningForASpecificKeyThatHasntBeenPressed(e, modifiers) {
       return e[`${modifier}Key`];
     });
     if (activelyPressedKeyModifiers.length === selectedSystemKeyModifiers.length) {
+      if (isClickEvent(e.type))
+        return false;
       if (keyToModifiers(e.key).includes(keyModifiers[0]))
         return false;
     }
@@ -2820,7 +2843,7 @@ directive("model", (el, { modifiers, expression }, { effect: effect3, cleanup: c
     setValue(getInputValue(el, modifiers, e, getValue()));
   });
   if (modifiers.includes("fill")) {
-    if ([void 0, null, ""].includes(getValue()) || el.type === "checkbox" && Array.isArray(getValue()) || el.tagName.toLowerCase() === "select" && el.multiple) {
+    if ([void 0, null, ""].includes(getValue()) || isCheckbox(el) && Array.isArray(getValue()) || el.tagName.toLowerCase() === "select" && el.multiple) {
       setValue(
         getInputValue(el, modifiers, { target: el }, getValue())
       );
@@ -2862,7 +2885,7 @@ function getInputValue(el, modifiers, event, currentValue) {
   return mutateDom(() => {
     if (event instanceof CustomEvent && event.detail !== void 0)
       return event.detail !== null && event.detail !== void 0 ? event.detail : event.target.value;
-    else if (el.type === "checkbox") {
+    else if (isCheckbox(el)) {
       if (Array.isArray(currentValue)) {
         let newValue = null;
         if (modifiers.includes("number")) {
@@ -2893,7 +2916,7 @@ function getInputValue(el, modifiers, event, currentValue) {
       });
     } else {
       let newValue;
-      if (el.type === "radio") {
+      if (isRadio(el)) {
         if (event.target.checked) {
           newValue = event.target.value;
         } else {
@@ -3109,7 +3132,12 @@ directive("for", (el, { expression }, { effect: effect3, cleanup: cleanup2 }) =>
   el._x_lookup = {};
   effect3(() => loop(el, iteratorNames, evaluateItems, evaluateKey));
   cleanup2(() => {
-    Object.values(el._x_lookup).forEach((el2) => el2.remove());
+    Object.values(el._x_lookup).forEach((el2) => mutateDom(
+      () => {
+        destroyTree(el2);
+        el2.remove();
+      }
+    ));
     delete el._x_prevKeys;
     delete el._x_lookup;
   });
@@ -3178,11 +3206,12 @@ function loop(el, iteratorNames, evaluateItems, evaluateKey) {
     }
     for (let i = 0; i < removes.length; i++) {
       let key = removes[i];
-      if (!!lookup[key]._x_effects) {
-        lookup[key]._x_effects.forEach(dequeueJob);
-      }
-      lookup[key].remove();
-      lookup[key] = null;
+      if (!(key in lookup))
+        continue;
+      mutateDom(() => {
+        destroyTree(lookup[key]);
+        lookup[key].remove();
+      });
       delete lookup[key];
     }
     for (let i = 0; i < moves.length; i++) {
@@ -3307,12 +3336,10 @@ directive("if", (el, { expression }, { effect: effect3, cleanup: cleanup2 }) => 
     });
     el._x_currentIfEl = clone2;
     el._x_undoIf = () => {
-      walk(clone2, (node) => {
-        if (!!node._x_effects) {
-          node._x_effects.forEach(dequeueJob);
-        }
+      mutateDom(() => {
+        destroyTree(clone2);
+        clone2.remove();
       });
-      clone2.remove();
       delete el._x_currentIfEl;
     };
     return clone2;

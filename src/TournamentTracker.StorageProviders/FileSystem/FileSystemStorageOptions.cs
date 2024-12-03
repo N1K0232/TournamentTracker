@@ -2,14 +2,9 @@
 
 public class FileSystemStorageOptions
 {
-    internal FileSystemStorageOptions(string storageFolder)
-    {
-        StorageFolder = storageFolder;
-    }
+    public string StorageFolder { get; set; }
 
-    public string StorageFolder { get; }
-
-    public string CreatePath(string path)
+    internal string CreatePath(string path)
     {
         return Path.Combine(StorageFolder, path);
     }

@@ -7,9 +7,9 @@ public class SavePrizeRequestValidator : AbstractValidator<SavePrizeRequest>
 {
     public SavePrizeRequestValidator()
     {
-        RuleFor(p => p.TournamentId)
+        RuleFor(p => p.Tournament)
             .NotEmpty()
-            .WithMessage("the tournament id is required");
+            .WithMessage("the tournament is required");
 
         RuleFor(p => p.Name)
             .MaximumLength(100)

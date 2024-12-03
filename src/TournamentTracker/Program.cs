@@ -1,272 +1,199 @@
-using System.Diagnostics;
-using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Mime;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using MicroElements.Swashbuckle.FluentValidation.AspNetCore;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Microsoft.Net.Http.Headers;
 using Microsoft.OpenApi.Models;
-using MinimalHelpers.OpenApi;
 using MinimalHelpers.Routing;
+using MinimalHelpers.Validation;
 using OperationResults.AspNetCore.Http;
-using Polly;
-using Polly.Retry;
-using Polly.Timeout;
-using Refit;
 using Serilog;
 using TinyHelpers.AspNetCore.Extensions;
-using TinyHelpers.AspNetCore.Swagger;
 using TinyHelpers.Extensions;
 using TinyHelpers.Json.Serialization;
-using TournamentTracker.BusinessLayer.Diagnostics.BackgroundServices;
-using TournamentTracker.BusinessLayer.Diagnostics.HealthChecks;
 using TournamentTracker.BusinessLayer.Mapping;
 using TournamentTracker.BusinessLayer.Services;
 using TournamentTracker.BusinessLayer.Settings;
 using TournamentTracker.BusinessLayer.Validations;
-using TournamentTracker.Client;
-using TournamentTracker.Core;
 using TournamentTracker.DataAccessLayer;
-using TournamentTracker.ExceptionHandlers;
 using TournamentTracker.Extensions;
-using TournamentTracker.Http;
 using TournamentTracker.StorageProviders.Extensions;
 using TournamentTracker.Swagger;
+using ResultErrorResponseFormat = OperationResults.AspNetCore.Http.ErrorResponseFormat;
+using ValidationErrorResponseFormat = MinimalHelpers.Validation.ErrorResponseFormat;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.local.json", true, true);
 
-ConfigureServices(builder.Services, builder.Configuration, builder.Environment, builder.Host);
-
-var app = builder.Build();
-Configure(app, app.Environment, app.Services);
-
-await app.RunAsync();
-
-void ConfigureServices(IServiceCollection services, IConfiguration configuration, IWebHostEnvironment environment, IHostBuilder host)
+builder.Host.UseSerilog((hostingContext, loggerConfiguration) =>
 {
-    host.UseSerilog((hostingContext, loggerConfiguration) =>
+    loggerConfiguration.ReadFrom.Configuration(hostingContext.Configuration);
+});
+
+var settings = builder.Services.ConfigureAndGet<AppSettings>(builder.Configuration, nameof(AppSettings));
+var swagger = builder.Services.ConfigureAndGet<SwaggerSettings>(builder.Configuration, nameof(SwaggerSettings));
+
+builder.Services.AddRazorPages();
+builder.Services.AddWebOptimizer(minifyCss: true, minifyJavaScript: builder.Environment.IsProduction());
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddRequestLocalization(settings.SupportedCultures);
+
+builder.Services.AddOperationResult(options =>
+{
+    options.ErrorResponseFormat = ResultErrorResponseFormat.List;
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(_ =>
     {
-        loggerConfiguration.ReadFrom.Configuration(hostingContext.Configuration);
-    });
-
-    var appSettings = services.ConfigureAndGet<AppSettings>(configuration, nameof(AppSettings));
-    var swaggerSettings = services.ConfigureAndGet<SwaggerSettings>(configuration, nameof(SwaggerSettings));
-
-    services.AddRazorPages();
-    services.AddWebOptimizer(minifyCss: true, minifyJavaScript: environment.IsProduction());
-
-    services.AddMemoryCache();
-    services.AddHttpContextAccessor();
-
-    services.AddRequestLocalization(appSettings.SupportedCultures);
-    services.AddExceptionHandler<DefaultExceptionHandler>();
-    services.AddSingleton<HealthCheckWriter>();
-
-    services.AddResiliencePipeline("timeout", (builder, context) =>
-    {
-        builder.AddTimeout(new TimeoutStrategyOptions
+        var tokenOptions = new TokenBucketRateLimiterOptions
         {
-            Timeout = TimeSpan.FromSeconds(2),
-            OnTimeout = args =>
-            {
-                var logger = context.ServiceProvider.GetRequiredService<ILogger<Program>>();
-                logger.LogInformation("Timeout occurred after: {TotalSeconds} seconds", args.Timeout.TotalSeconds);
-
-                return default;
-            }
-        });
-    });
-
-    services.AddResiliencePipeline<string, HttpResponseMessage>("http", (builder, context) =>
-    {
-        builder.AddRetry(new RetryStrategyOptions<HttpResponseMessage>
-        {
-            MaxRetryAttempts = 3,
-            ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
-            .Handle<HttpRequestException>()
-            .HandleResult(r => r.StatusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests or >= HttpStatusCode.InternalServerError),
-            DelayGenerator = args =>
-            {
-                if (args.Outcome.Result is not null && args.Outcome.Result.Headers.TryGetValues(HeaderNames.RetryAfter, out var value))
-                {
-                    return new ValueTask<TimeSpan?>(TimeSpan.FromSeconds(int.Parse(value.First())));
-                }
-
-                return new ValueTask<TimeSpan?>(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber + 1)));
-            },
-            OnRetry = args =>
-            {
-                var logger = context.ServiceProvider.GetRequiredService<ILogger<Program>>();
-                logger.LogInformation("Retrying... {AttemptNumber} attempt after {RetryDelay}", args.AttemptNumber + 1, args.RetryDelay);
-
-                return default;
-            }
-        });
-    });
-
-    services.AddTransient<TransientErrorDelegatingHandler>();
-    services.AddHttpClient("http").AddHttpMessageHandler<TransientErrorDelegatingHandler>();
-
-    services.AddRefitClient<ITournamentsClient>()
-        .ConfigureHttpClient(client =>
-        {
-            client.BaseAddress = new Uri(appSettings.BaseUrl);
-            client.DefaultRequestHeaders.Accept.Clear();
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(MediaTypeNames.Application.Json));
-        });
-
-    services.AddOperationResult(options =>
-    {
-        options.ErrorResponseFormat = ErrorResponseFormat.List;
-    });
-
-    services.AddAutoMapper(typeof(TournamentMapperProfile).Assembly);
-    services.AddValidatorsFromAssemblyContaining<SaveTournamentRequestValidator>();
-
-    services.AddFluentValidationAutoValidation(options =>
-    {
-        options.DisableDataAnnotationsValidation = true;
-    });
-
-    services.ConfigureHttpJsonOptions(options =>
-    {
-        options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault;
-        options.SerializerOptions.Converters.Add(new UtcDateTimeConverter());
-        options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
-    });
-
-    services.AddProblemDetails(options =>
-    {
-        options.CustomizeProblemDetails = context =>
-        {
-            var statusCode = context.ProblemDetails.Status.GetValueOrDefault(StatusCodes.Status500InternalServerError);
-            context.ProblemDetails.Type ??= $"https://httpstatuses.io/{statusCode}";
-            context.ProblemDetails.Title ??= ReasonPhrases.GetReasonPhrase(statusCode);
-            context.ProblemDetails.Instance ??= context.HttpContext.Request.Path;
-            context.ProblemDetails.Extensions["traceId"] = Activity.Current?.Id ?? context.HttpContext.TraceIdentifier;
+            TokenLimit = 500,
+            TokensPerPeriod = 50,
+            ReplenishmentPeriod = TimeSpan.FromHours(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst
         };
+
+        return RateLimitPartition.GetTokenBucketLimiter("Default", _ => tokenOptions);
     });
 
-    if (swaggerSettings.Enabled)
+    options.OnRejected = (context, token) =>
     {
-        services.AddEndpointsApiExplorer();
-
-        services.AddSwaggerGen(options =>
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var window))
         {
-            options.SwaggerDoc(swaggerSettings.Version, new OpenApiInfo { Title = swaggerSettings.Title, Version = swaggerSettings.Version });
-            options.AddDefaultResponse();
-            options.AddAcceptLanguageHeader();
-            options.AddFormFile();
-        })
-        .AddFluentValidationRulesToSwagger(options =>
-        {
-            options.SetNotNullableIfMinLengthGreaterThenZero = true;
-        });
-    }
-
-    var connectionString = configuration.GetConnectionString("SqlConnection");
-    services.AddScoped<IDataContext>(services => services.GetRequiredService<DataContext>());
-    services.AddSqlServer<DataContext>(connectionString, options =>
-    {
-        options.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
-        options.CommandTimeout(appSettings.CommandTimeout);
-        options.EnableRetryOnFailure(appSettings.MaxRetryCount, appSettings.MaxRetryDelay, null);
-    });
-
-    var azureStorageConnectionString = configuration.GetConnectionString("AzureStorageConnection");
-    if (azureStorageConnectionString.HasValue() && appSettings.ContainerName.HasValue())
-    {
-        services.AddAzureStorage(options =>
-        {
-            options.UseConnectionString(azureStorageConnectionString);
-            options.UseContainerName(appSettings.ContainerName);
-        });
-    }
-    else
-    {
-        services.AddFileSystemStorage(options =>
-        {
-            options.UseStorageFolder(appSettings.StorageFolder ?? AppContext.BaseDirectory);
-        });
-    }
-
-    services.AddHostedService<SqlConnectionBackgroundService>();
-    services.AddHealthChecks().AddDbContextCheck<DataContext>("entityframework").AddCheck<SqlConnectionHealthCheck>("sql");
-
-    services.Scan(scan => scan.FromAssemblyOf<TournamentService>()
-        .AddClasses(classes => classes.InNamespaceOf<TournamentService>())
-        .AsImplementedInterfaces()
-        .WithScopedLifetime());
-}
-
-void Configure(IApplicationBuilder app, IWebHostEnvironment environment, IServiceProvider services)
-{
-    var appSettings = services.GetRequiredService<IOptions<AppSettings>>().Value;
-    var swaggerSettings = services.GetRequiredService<IOptions<SwaggerSettings>>().Value;
-
-    environment.ApplicationName = appSettings.ApplicationName;
-
-    app.UseHttpsRedirection();
-    app.UseRequestLocalization();
-
-    app.UseRouting();
-    app.UseWebOptimizer();
-
-    app.UseWhen(context => context.IsWebRequest(), builder =>
-    {
-        if (!environment.IsDevelopment())
-        {
-            builder.UseExceptionHandler("/Errors/500");
-            builder.UseHsts();
+            context.HttpContext.Response.Headers.RetryAfter = window.TotalSeconds.ToString();
         }
 
-        builder.UseStatusCodePagesWithReExecute("/Errors/{0}");
-    });
+        return ValueTask.CompletedTask;
+    };
+});
 
-    app.UseStaticFiles();
-    app.UseDefaultFiles();
+builder.Services.ConfigureValidation(options =>
+{
+    options.ErrorResponseFormat = ValidationErrorResponseFormat.List;
+});
 
-    app.UseWhen(context => context.IsApiRequest(), builder =>
+builder.Services.AddAutoMapper(typeof(TournamentMapperProfile).Assembly);
+builder.Services.AddValidatorsFromAssemblyContaining<SaveTournamentRequestValidator>();
+
+builder.Services.AddFluentValidationAutoValidation(options =>
+{
+    options.DisableDataAnnotationsValidation = true;
+});
+
+builder.Services.AddDefaultExceptionHandler();
+builder.Services.AddDefaultProblemDetails();
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault;
+    options.SerializerOptions.Converters.Add(new UtcDateTimeConverter());
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+
+if (swagger.Enabled)
+{
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen(options =>
     {
-        builder.UseExceptionHandler();
-        builder.UseStatusCodePages();
-    });
-
-    if (swaggerSettings.Enabled)
-    {
-        app.UseMiddleware<SwaggerAuthenticationMiddleware>();
-        app.UseSwagger();
-        app.UseSwaggerUI(options =>
+        options.SwaggerDoc("v1", new OpenApiInfo
         {
-            options.SwaggerEndpoint("/swagger/v1/swagger.json", $"{swaggerSettings.Title} {swaggerSettings.Version}");
-            options.InjectStylesheet("/css/swagger.css");
+            Title = "Tournament Tracker Api",
+            Version = "v1"
         });
-    }
-
-    app.UseAuthorization();
-    app.UseSerilogRequestLogging(options =>
+    })
+    .AddFluentValidationRulesToSwagger(options =>
     {
-        options.IncludeQueryInRequestPath = true;
-    });
-
-    app.UseEndpoints(endpoints =>
-    {
-        endpoints.MapEndpoints();
-        endpoints.MapRazorPages();
-        endpoints.MapHealthChecks("/status", new HealthCheckOptions
-        {
-            ResponseWriter = async (context, report) =>
-            {
-                var writer = services.GetRequiredService<HealthCheckWriter>();
-                await writer.WriteAsync(context, report);
-            }
-        });
+        options.SetNotNullableIfMinLengthGreaterThenZero = true;
     });
 }
+
+builder.Services.AddDbContext<IDataContext, DataContext>(options =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("SqlConnection");
+    options.UseSqlServer(connectionString, sqlOptions =>
+    {
+        sqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+        sqlOptions.EnableRetryOnFailure(10, TimeSpan.FromSeconds(2), null);
+    });
+});
+
+var azureStorageConnectionString = builder.Configuration.GetConnectionString("AzureStorageConnection");
+if (azureStorageConnectionString.HasValue())
+{
+    builder.Services.AddAzureStorage(options =>
+    {
+        options.ConnectionString = azureStorageConnectionString;
+        options.ContainerName = settings.StorageFolder;
+    });
+}
+else
+{
+    builder.Services.AddFileSystemStorage(options =>
+    {
+        options.StorageFolder = settings.StorageFolder;
+    });
+}
+
+builder.Services.AddHealthChecks().AddDbContextCheck<DataContext>("database");
+builder.Services.Scan(scan => scan.FromAssemblyOf<TournamentService>()
+    .AddClasses(classes => classes.InNamespaceOf<TournamentService>())
+    .AsImplementedInterfaces()
+    .WithScopedLifetime());
+
+var app = builder.Build();
+app.Environment.ApplicationName = settings.ApplicationName;
+
+app.UseHttpsRedirection();
+app.UseRequestLocalization();
+
+app.UseRouting();
+app.UseWebOptimizer();
+
+app.UseWhen(context => context.IsWebRequest(), builder =>
+{
+    if (!app.Environment.IsDevelopment())
+    {
+        builder.UseExceptionHandler("/Errors/500");
+        builder.UseHsts();
+    }
+
+    builder.UseStatusCodePagesWithReExecute("/Errors/{0}");
+});
+
+app.UseStaticFiles();
+app.UseDefaultFiles();
+
+app.UseWhen(context => context.IsApiRequest(), builder =>
+{
+    builder.UseExceptionHandler();
+    builder.UseStatusCodePages();
+});
+
+if (swagger.Enabled)
+{
+    app.UseMiddleware<SwaggerAuthenticationMiddleware>();
+
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Tournament Tracker Api v1");
+        options.InjectStylesheet("/css/swagger.css");
+    });
+}
+
+app.UseAuthorization();
+app.UseSerilogRequestLogging(options =>
+{
+    options.IncludeQueryInRequestPath = true;
+});
+
+app.MapEndpoints();
+app.MapRazorPages();
+
+await app.RunAsync();

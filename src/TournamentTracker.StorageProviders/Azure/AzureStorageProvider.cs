@@ -1,60 +1,68 @@
-﻿using TournamentTracker.StorageProviders.Caching;
+﻿using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using MimeMapping;
 
 namespace TournamentTracker.StorageProviders.Azure;
 
-public class AzureStorageProvider : IStorageProvider
+internal class AzureStorageProvider : IStorageProvider
 {
-    private readonly AzureStorageClient client;
-    private readonly IStorageProviderCache cache;
+    private readonly BlobServiceClient blobServiceClient;
+    private readonly AzureStorageOptions options;
 
-    public AzureStorageProvider(AzureStorageClient client, IStorageProviderCache cache)
+    public AzureStorageProvider(BlobServiceClient blobServiceClient, AzureStorageOptions options)
     {
-        this.client = client;
-        this.cache = cache;
+        this.blobServiceClient = blobServiceClient;
+        this.options = options;
     }
 
     public async Task DeleteAsync(string path, CancellationToken cancellationToken = default)
     {
-        await client.DeleteAsync(path, cancellationToken);
-        await cache.DeleteAsync(path, cancellationToken);
+        var blobContainerClient = blobServiceClient.GetBlobContainerClient(options.ContainerName);
+        await blobContainerClient.DeleteBlobIfExistsAsync(path, cancellationToken: cancellationToken);
     }
 
     public async Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default)
     {
-        var cacheExists = await cache.ExistsAsync(path, cancellationToken);
-        if (!cacheExists)
-        {
-            var exists = await client.ExistsAsync(path, cancellationToken);
-            return exists;
-        }
+        var blobClient = await GetBlobClientAsync(path, false, cancellationToken);
+        var exists = await blobClient.ExistsAsync(cancellationToken);
 
-        return cacheExists;
+        return exists;
     }
 
-    public async Task<Stream?> ReadAsStreamAsync(string path, CancellationToken cancellationToken = default)
+    public async Task<Stream> ReadAsStreamAsync(string path, CancellationToken cancellationToken = default)
     {
-        var cachedStream = await cache.ReadAsync(path, cancellationToken);
-        if (cachedStream is not null)
+        var blobClient = await GetBlobClientAsync(path, false, cancellationToken);
+        var exists = await blobClient.ExistsAsync(cancellationToken);
+
+        if (!exists)
         {
-            return cachedStream;
+            return null;
         }
 
-        var stream = await client.ReadAsync(path, cancellationToken);
+        var stream = await blobClient.OpenReadAsync(cancellationToken: cancellationToken);
         return stream;
     }
 
-    public async Task SaveAsync(Stream stream, string path, bool overwrite = false, CancellationToken cancellationToken = default)
+    public async Task SaveAsync(Stream stream, string path, CancellationToken cancellationToken = default)
     {
-        if (!overwrite)
+        var blobClient = await GetBlobClientAsync(path, true, cancellationToken);
+        var headers = new BlobHttpHeaders
         {
-            var exists = await client.ExistsAsync(path, cancellationToken);
-            if (exists)
-            {
-                throw new IOException($"The file {path} already exists");
-            }
+            ContentType = MimeUtility.GetMimeMapping(path)
+        };
+
+        stream.Position = 0;
+        await blobClient.UploadAsync(stream, headers, cancellationToken: cancellationToken);
+    }
+
+    private async Task<BlobClient> GetBlobClientAsync(string path, bool createIfNotExists = false, CancellationToken cancellationToken = default)
+    {
+        var blobContainerClient = blobServiceClient.GetBlobContainerClient(options.ContainerName);
+        if (createIfNotExists)
+        {
+            await blobContainerClient.CreateIfNotExistsAsync(PublicAccessType.None, cancellationToken: cancellationToken);
         }
 
-        await client.SaveAsync(stream, path, cancellationToken);
-        await cache.SetAsync(path, stream, cancellationToken);
+        return blobContainerClient.GetBlobClient(path);
     }
 }

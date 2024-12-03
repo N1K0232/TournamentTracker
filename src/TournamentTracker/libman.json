@@ -15,29 +15,16 @@
             "destination": "wwwroot/lib/jquery"
         },
         {
-            "library": "font-awesome@6.5.2",
+            "library": "font-awesome@6.6.0",
             "destination": "wwwroot/lib/fontawesome"
         },
         {
-            "library": "alpinejs@3.13.10",
+            "library": "alpinejs@3.14.5",
             "destination": "wwwroot/lib/alpine"
         },
         {
-            "provider": "jsdelivr",
-            "library": "@alpinejs/persist@3.13.10",
-            "destination": "wwwroot/lib/alpinejs/persist"
-        },
-        {
-            "library": "marked@12.0.2",
+            "library": "marked@15.0.3",
             "destination": "wwwroot/lib/marked"
-        },
-        {
-            "library": "boxicons@2.1.4",
-            "destination": "wwwroot/lib/boxicons"
-        },
-        {
-            "library": "material-ui@4.12.4",
-            "destination": "wwwroot/lib/material-ui"
         }
     ]
 }

@@ -1,6 +1,5 @@
 ﻿using System.Linq.Dynamic.Core;
 using AutoMapper;
-using AutoMapper.QueryableExtensions;
 using Microsoft.EntityFrameworkCore;
 using OperationResults;
 using TinyHelpers.Extensions;
@@ -8,7 +7,6 @@ using TournamentTracker.BusinessLayer.Services.Interfaces;
 using TournamentTracker.DataAccessLayer;
 using TournamentTracker.DataAccessLayer.Extensions;
 using TournamentTracker.Shared.Models;
-using TournamentTracker.Shared.Models.Collections;
 using TournamentTracker.Shared.Models.Requests;
 using Entities = TournamentTracker.DataAccessLayer.Entities;
 
@@ -18,86 +16,89 @@ public class PeopleService(IDataContext dataContext, IMapper mapper) : IPeopleSe
 {
     public async Task<Result> DeleteAsync(Guid id)
     {
-        try
+        var person = await dataContext.GetAsync<Entities.Person>(id);
+        if (person is null)
         {
-            var person = await dataContext.GetAsync<Entities.Person>(id);
-            if (person is not null)
-            {
-                dataContext.Delete(person);
-                await dataContext.SaveAsync();
-
-                return Result.Ok();
-            }
-
-            return Result.Fail(FailureReasons.ItemNotFound, $"No person found with id {id}");
+            return Result.Fail(FailureReasons.ItemNotFound, "No person found");
         }
-        catch (DbUpdateException ex)
-        {
-            return Result.Fail(FailureReasons.DatabaseError, ex);
-        }
+
+        dataContext.Delete(person);
+        await dataContext.SaveAsync();
+
+        return Result.Ok();
     }
 
     public async Task<Result<Person>> GetAsync(Guid id)
     {
         var dbPerson = await dataContext.GetAsync<Entities.Person>(id);
-        if (dbPerson is not null)
+        if (dbPerson is null)
         {
-            var person = mapper.Map<Person>(dbPerson);
-            return person;
+            return Result.Fail(FailureReasons.ItemNotFound, "No person found");
         }
 
-        return Result.Fail(FailureReasons.ItemNotFound, $"No person found with id {id}");
+        var person = mapper.Map<Person>(dbPerson);
+        return person;
     }
 
-    public async Task<Result<ListResult<Person>>> GetListAsync(string name, string orderBy, int pageIndex, int itemsPerPage)
+    public async Task<Result<PaginatedList<Person>>> GetListAsync(string firstName, string lastName, string orderBy, int pageIndex, int itemsPerPage)
     {
         var query = dataContext.GetData<Entities.Person>()
-            .WhereIf(name.HasValue(), p => p.FirstName.Contains(name) || p.LastName.Contains(name));
+            .WhereIf(firstName.HasValue(), p => p.FirstName.Contains(firstName))
+            .WhereIf(lastName.HasValue(), p => p.LastName.Contains(lastName));
 
-        var totalCount = await query.LongCountAsync();
-        var people = await query.ProjectTo<Person>(mapper.ConfigurationProvider)
-            .OrderBy(orderBy).Skip(pageIndex * itemsPerPage).Take(itemsPerPage + 1)
-            .ToListAsync();
+        var totalCount = await query.CountAsync();
+        var dbPeople = await query.OrderBy(orderBy).ToListAsync(pageIndex, itemsPerPage);
 
         var hasNextPage = await query.HasNextPageAsync(pageIndex, itemsPerPage);
-        return new ListResult<Person>(people.Take(itemsPerPage), totalCount);
+        var people = mapper.Map<IEnumerable<Person>>(dbPeople).Take(itemsPerPage);
+
+        return new PaginatedList<Person>(people, totalCount, hasNextPage);
     }
 
-    public async Task<Result<Person>> CreateAsync(SavePersonRequest request)
+    public async Task<Result<Person>> InsertAsync(SavePersonRequest request)
     {
-        try
+        var exists = await dataContext.GetData<Entities.Person>().AnyAsync(p => p.FirstName == request.FirstName && p.LastName == request.LastName);
+        if (exists)
         {
-            var person = mapper.Map<Entities.Person>(request);
-            dataContext.Insert(person);
-            await dataContext.SaveAsync();
+            return Result.Fail(FailureReasons.Conflict, "This person already exists");
+        }
 
-            var createdPerson = mapper.Map<Person>(person);
-            return createdPerson;
-        }
-        catch (DbUpdateException ex)
+        var team = await dataContext.GetData<Entities.Team>().FirstOrDefaultAsync(t => t.Name == request.Team);
+        if (team is null)
         {
-            return Result.Fail(FailureReasons.DatabaseError, ex);
+            return Result.Fail(FailureReasons.ClientError, "This team does not exists");
         }
+
+        var dbPerson = mapper.Map<Entities.Person>(request);
+        dbPerson.Team = team;
+
+        dataContext.Insert(dbPerson);
+        await dataContext.SaveAsync();
+
+        var person = mapper.Map<Person>(dbPerson);
+        return person;
     }
 
     public async Task<Result<Person>> UpdateAsync(Guid id, SavePersonRequest request)
     {
-        try
-        {
-            var query = dataContext.GetData<Entities.Person>(trackingChanges: true);
-            var person = await query.FirstOrDefaultAsync(p => p.Id == id);
+        var query = dataContext.GetData<Entities.Person>(trackingChanges: true);
+        var dbPerson = await query.FirstOrDefaultAsync(p => p.Id == id);
 
-            if (person is not null)
-            {
-                mapper.Map(request, person);
-                await dataContext.SaveAsync();
-            }
-
-            return Result.Fail(FailureReasons.ItemNotFound, $"No person found with id {id}");
-        }
-        catch (DbUpdateException ex)
+        if (dbPerson is null)
         {
-            return Result.Fail(FailureReasons.DatabaseError, ex);
+            return Result.Fail(FailureReasons.ItemNotFound, "No person found");
         }
+
+        var team = await dataContext.GetData<Entities.Team>().FirstOrDefaultAsync(t => t.Name == request.Team);
+        if (team is null)
+        {
+            return Result.Fail(FailureReasons.ClientError, "This team does not exists");
+        }
+
+        mapper.Map(request, dbPerson);
+        dbPerson.Team = team;
+
+        await dataContext.SaveAsync();
+        return mapper.Map<Person>(dbPerson);
     }
 }

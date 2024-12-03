@@ -6,7 +6,6 @@ using TinyHelpers.Extensions;
 using TournamentTracker.DataAccessLayer;
 using TournamentTracker.DataAccessLayer.Extensions;
 using TournamentTracker.Shared.Models;
-using TournamentTracker.Shared.Models.Collections;
 using TournamentTracker.Shared.Models.Requests;
 using Entities = TournamentTracker.DataAccessLayer.Entities;
 
@@ -19,15 +18,15 @@ public class TournamentService(IDataContext dataContext, IMapper mapper) : ITour
         try
         {
             var tournament = await dataContext.GetAsync<Entities.Tournament>(id);
-            if (tournament is not null)
+            if (tournament is null)
             {
-                dataContext.Delete(tournament);
-                await dataContext.SaveAsync();
-
-                return Result.Ok();
+                return Result.Fail(FailureReasons.ItemNotFound, "No tournament found");
             }
 
-            return Result.Fail(FailureReasons.ItemNotFound, $"No tournament found with id {id}");
+            dataContext.Delete(tournament);
+            await dataContext.SaveAsync();
+
+            return Result.Ok();
         }
         catch (DbUpdateException ex)
         {
@@ -38,58 +37,51 @@ public class TournamentService(IDataContext dataContext, IMapper mapper) : ITour
     public async Task<Result<Tournament>> GetAsync(Guid id)
     {
         var dbTournament = await dataContext.GetAsync<Entities.Tournament>(id);
-        if (dbTournament is not null)
+        if (dbTournament is null)
         {
-            var tournament = mapper.Map<Tournament>(dbTournament);
-            tournament.EnteredTeams = await GetTeamsAsync(id);
-            tournament.Prizes = await GetPrizesAsync(id);
-
-            return tournament;
+            return Result.Fail(FailureReasons.ItemNotFound, "No tournament found");
         }
 
-        return Result.Fail(FailureReasons.ItemNotFound, $"No tournament found with id {id}");
+        var tournament = mapper.Map<Tournament>(dbTournament);
+        tournament.EnteredTeams = await GetTeamsAsync(id);
+        tournament.Prizes = await GetPrizesAsync(id);
+
+        return tournament;
     }
 
-    public async Task<Result<ListResult<Tournament>>> GetListAsync(string name, int pageIndex, int itemsPerPage)
+    public async Task<Result<PaginatedList<Tournament>>> GetListAsync(string name, int pageIndex, int itemsPerPage)
     {
-        var query = dataContext.GetData<Entities.Tournament>();
+        var query = dataContext.GetData<Entities.Tournament>()
+            .WhereIf(name.HasValue(), t => t.Name.Contains(name));
 
-        if (name.HasValue())
-        {
-            query = query.Where(t => t.Name.Contains(name));
-        }
+        var totalCount = await query.CountAsync();
+        var dbTournaments = await query.OrderBy(t => t.Name).ToListAsync(pageIndex, itemsPerPage);
 
-        var totalCount = await query.LongCountAsync();
-        var tournaments = await query.ProjectTo<Tournament>(mapper.ConfigurationProvider)
-            .OrderBy(t => t.Name)
-            .Skip(pageIndex * itemsPerPage).Take(itemsPerPage + 1)
-            .ToListAsync();
-
+        var tournaments = mapper.Map<IEnumerable<Tournament>>(dbTournaments).Take(itemsPerPage);
         var hasNextPage = await query.HasNextPageAsync(pageIndex, itemsPerPage);
+
         await tournaments.ForEachAsync(async (tournament) =>
         {
             tournament.EnteredTeams = await GetTeamsAsync(tournament.Id);
             tournament.Prizes = await GetPrizesAsync(tournament.Id);
         });
 
-        return new ListResult<Tournament>(tournaments.Take(itemsPerPage), totalCount, hasNextPage);
+        return new PaginatedList<Tournament>(tournaments, totalCount, hasNextPage);
     }
 
-    public async Task<Result<Tournament>> CreateAsync(SaveTournamentRequest request)
+    public async Task<Result<Tournament>> InsertAsync(SaveTournamentRequest request)
     {
-        try
+        var exists = await dataContext.GetData<Entities.Tournament>().AnyAsync(t => t.Name == request.Name && t.EntryFee == request.EntryFee && t.StartDate == request.StartDate);
+        if (exists)
         {
-            var tournament = mapper.Map<Entities.Tournament>(request);
-            dataContext.Insert(tournament);
-            await dataContext.SaveAsync();
+            return Result.Fail(FailureReasons.Conflict, "This tournament already exists");
+        }
 
-            var createdTournament = mapper.Map<Tournament>(tournament);
-            return createdTournament;
-        }
-        catch (DbUpdateException ex)
-        {
-            return Result.Fail(FailureReasons.DatabaseError, ex);
-        }
+        var dbTournament = mapper.Map<Entities.Tournament>(request);
+        dataContext.Insert(dbTournament);
+
+        await dataContext.SaveAsync();
+        return mapper.Map<Tournament>(dbTournament);
     }
 
     public async Task<Result<Tournament>> UpdateAsync(Guid id, SaveTournamentRequest request)
@@ -99,16 +91,16 @@ public class TournamentService(IDataContext dataContext, IMapper mapper) : ITour
             var query = dataContext.GetData<Entities.Tournament>(true, true);
             var tournament = await query.FirstOrDefaultAsync(t => t.Id == id);
 
-            if (tournament is not null)
+            if (tournament is null)
             {
-                mapper.Map(request, tournament);
-                await dataContext.SaveAsync();
-
-                var savedTournament = mapper.Map<Tournament>(tournament);
-                return savedTournament;
+                return Result.Fail(FailureReasons.ItemNotFound, "No tournament found");
             }
 
-            return Result.Fail(FailureReasons.ItemNotFound, $"No tournament found with id {id}");
+            mapper.Map(request, tournament);
+            await dataContext.SaveAsync();
+
+            var savedTournament = mapper.Map<Tournament>(tournament);
+            return savedTournament;
         }
         catch (DbUpdateException ex)
         {
@@ -116,10 +108,9 @@ public class TournamentService(IDataContext dataContext, IMapper mapper) : ITour
         }
     }
 
-    private async Task<ListResult<Team>> GetTeamsAsync(Guid id)
+    private async Task<IEnumerable<Team>> GetTeamsAsync(Guid id)
     {
         var query = dataContext.GetData<Entities.Team>().Where(t => t.TournamentId == id);
-        var totalCount = await query.LongCountAsync();
         var teams = await query.ProjectTo<Team>(mapper.ConfigurationProvider).ToListAsync();
 
         await teams.ForEachAsync(async (team) =>
@@ -127,23 +118,21 @@ public class TournamentService(IDataContext dataContext, IMapper mapper) : ITour
             team.Members = await GetMembersAsync(team.Id);
         });
 
-        return new ListResult<Team>(teams, totalCount);
+        return teams;
     }
 
-    private async Task<ListResult<Person>> GetMembersAsync(Guid id)
+    private async Task<IEnumerable<Person>> GetMembersAsync(Guid id)
     {
         var query = dataContext.GetData<Entities.Person>().Where(p => p.TeamId == id);
-        var totalCount = await query.LongCountAsync();
         var people = await query.ProjectTo<Person>(mapper.ConfigurationProvider).ToListAsync();
 
-        return new ListResult<Person>(people, totalCount);
+        return people;
     }
 
     private async Task<IEnumerable<Prize>> GetPrizesAsync(Guid id)
     {
         var query = dataContext.GetData<Entities.Prize>().Where(p => p.TournamentId == id);
-        var prizes = await query.ProjectTo<Prize>(mapper.ConfigurationProvider)
-            .ToListAsync();
+        var prizes = await query.ProjectTo<Prize>(mapper.ConfigurationProvider).ToListAsync();
 
         return prizes;
     }

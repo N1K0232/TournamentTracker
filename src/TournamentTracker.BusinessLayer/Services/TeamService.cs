@@ -7,7 +7,6 @@ using TournamentTracker.BusinessLayer.Services.Interfaces;
 using TournamentTracker.DataAccessLayer;
 using TournamentTracker.DataAccessLayer.Extensions;
 using TournamentTracker.Shared.Models;
-using TournamentTracker.Shared.Models.Collections;
 using TournamentTracker.Shared.Models.Requests;
 using Entities = TournamentTracker.DataAccessLayer.Entities;
 
@@ -17,46 +16,39 @@ public class TeamService(IDataContext dataContext, IMapper mapper) : ITeamServic
 {
     public async Task<Result> DeleteAsync(Guid id)
     {
-        try
+        var team = await dataContext.GetAsync<Entities.Team>(id);
+        if (team is null)
         {
-            var team = await dataContext.GetAsync<Entities.Team>(id);
-            if (team is not null)
-            {
-                dataContext.Delete(team);
-                await dataContext.SaveAsync();
-
-                return Result.Ok();
-            }
-
-            return Result.Fail(FailureReasons.ItemNotFound, $"No team found with id {id}");
+            return Result.Fail(FailureReasons.ItemNotFound, "No team found");
         }
-        catch (DbUpdateException ex)
-        {
-            return Result.Fail(FailureReasons.DatabaseError, ex);
-        }
+
+        dataContext.Delete(team);
+        await dataContext.SaveAsync();
+
+        return Result.Ok();
     }
 
     public async Task<Result<Team>> GetAsync(Guid id)
     {
         var dbTeam = await dataContext.GetAsync<Entities.Team>(id);
-        if (dbTeam is not null)
+        if (dbTeam is null)
         {
-            var team = mapper.Map<Team>(dbTeam);
-            team.Members = await GetMembersAsync(id);
-
-            return team;
+            return Result.Fail(FailureReasons.ItemNotFound, "No team found");
         }
 
-        return Result.Fail(FailureReasons.ItemNotFound, $"No team found with id {id}");
+        var team = mapper.Map<Team>(dbTeam);
+        team.Members = await GetMembersAsync(id);
+
+        return team;
     }
 
-    public async Task<Result<ListResult<Team>>> GetListAsync(string name, int pageIndex, int itemsPerPage)
+    public async Task<Result<PaginatedList<Team>>> GetListAsync(string name, int pageIndex, int itemsPerPage)
     {
         var query = dataContext.GetData<Entities.Team>().WhereIf(name.HasValue(), t => t.Name.Contains(name));
-        var totalCount = await query.LongCountAsync();
-        var teams = await query.ProjectTo<Team>(mapper.ConfigurationProvider)
-            .Skip(pageIndex * itemsPerPage).Take(itemsPerPage + 1)
-            .ToListAsync();
+        var totalCount = await query.CountAsync();
+
+        var dbTeams = await query.OrderBy(t => t.Name).ToListAsync(pageIndex, itemsPerPage);
+        var teams = mapper.Map<IEnumerable<Team>>(dbTeams);
 
         var hasNextPage = await query.HasNextPageAsync(pageIndex, itemsPerPage);
         await teams.ForEachAsync(async (team) =>
@@ -64,56 +56,61 @@ public class TeamService(IDataContext dataContext, IMapper mapper) : ITeamServic
             team.Members = await GetMembersAsync(team.Id);
         });
 
-        return new ListResult<Team>(teams.Take(itemsPerPage), totalCount, hasNextPage);
+        return new PaginatedList<Team>(teams, totalCount, hasNextPage);
     }
 
-    public async Task<Result<Team>> CreateAsync(SaveTeamRequest request)
+    public async Task<Result<Team>> InsertAsync(SaveTeamRequest request)
     {
-        try
+        var exists = await dataContext.GetData<Entities.Team>().AnyAsync(t => t.Name == request.Name);
+        if (exists)
         {
-            var team = mapper.Map<Entities.Team>(request);
-            dataContext.Insert(team);
-            await dataContext.SaveAsync();
+            return Result.Fail(FailureReasons.Conflict, "This team already exists");
+        }
 
-            var createdTeam = mapper.Map<Team>(team);
-            return createdTeam;
-        }
-        catch (DbUpdateException ex)
+        var tournament = await dataContext.GetData<Entities.Tournament>().FirstOrDefaultAsync(t => t.Name == request.Tournament);
+        if (tournament is null)
         {
-            return Result.Fail(FailureReasons.DatabaseError, ex);
+            return Result.Fail(FailureReasons.ClientError, "The tournament does not exists");
         }
+
+        var dbTeam = mapper.Map<Entities.Team>(request);
+        dbTeam.Tournament = tournament;
+
+        dataContext.Insert(dbTeam);
+        await dataContext.SaveAsync();
+
+        var team = mapper.Map<Team>(dbTeam);
+        return team;
     }
 
     public async Task<Result<Team>> UpdateAsync(Guid id, SaveTeamRequest request)
     {
-        try
+        var query = dataContext.GetData<Entities.Team>(trackingChanges: true);
+        var dbTeam = await query.FirstOrDefaultAsync(t => t.Id == id);
+
+        if (dbTeam is null)
         {
-            var query = dataContext.GetData<Entities.Team>(trackingChanges: true);
-            var team = await query.FirstOrDefaultAsync(t => t.Id == id);
-
-            if (team is not null)
-            {
-                mapper.Map(request, team);
-                await dataContext.SaveAsync();
-
-                var savedTeam = mapper.Map<Team>(team);
-                return savedTeam;
-            }
-
-            return Result.Fail(FailureReasons.ItemNotFound, $"No team found with id {id}");
+            return Result.Fail(FailureReasons.ItemNotFound, "No team found");
         }
-        catch (DbUpdateException ex)
+
+        var tournament = await dataContext.GetData<Entities.Tournament>().FirstOrDefaultAsync(t => t.Name == request.Tournament);
+        if (tournament is null)
         {
-            return Result.Fail(FailureReasons.DatabaseError, ex);
+            return Result.Fail(FailureReasons.ClientError, "The tournament does not exists");
         }
+
+        mapper.Map(request, dbTeam);
+        dbTeam.Tournament = tournament;
+
+        await dataContext.SaveAsync();
+        return mapper.Map<Team>(dbTeam);
     }
 
-    private async Task<ListResult<Person>> GetMembersAsync(Guid id)
+    private async Task<IEnumerable<Person>> GetMembersAsync(Guid id)
     {
         var query = dataContext.GetData<Entities.Person>().Where(p => p.TeamId == id);
-        var totalCount = await query.LongCountAsync();
         var people = await query.ProjectTo<Person>(mapper.ConfigurationProvider).ToListAsync();
 
-        return new ListResult<Person>(people, totalCount);
+        return people;
     }
 }

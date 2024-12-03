@@ -12,7 +12,7 @@ public interface IPrizeService
 
     Task<Result<IEnumerable<Prize>>> GetListAsync();
 
-    Task<Result<Prize>> CreateAsync(SavePrizeRequest request);
+    Task<Result<Prize>> InsertAsync(SavePrizeRequest request);
 
     Task<Result<Prize>> UpdateAsync(Guid id, SavePrizeRequest request);
 }

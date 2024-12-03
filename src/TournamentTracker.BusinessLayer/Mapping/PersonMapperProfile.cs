@@ -10,6 +10,6 @@ public class PersonMapperProfile : Profile
     public PersonMapperProfile()
     {
         CreateMap<Entities.Person, Person>();
-        CreateMap<SavePersonRequest, Entities.Person>();
+        CreateMap<SavePersonRequest, Entities.Person>().ForMember(p => p.Team, options => options.Ignore());
     }
 }

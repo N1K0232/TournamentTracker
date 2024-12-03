@@ -7,7 +7,7 @@ public class SaveTeamRequestValidator : AbstractValidator<SaveTeamRequest>
 {
     public SaveTeamRequestValidator()
     {
-        RuleFor(t => t.TournamentId)
+        RuleFor(t => t.Tournament)
             .NotEmpty()
             .WithMessage("the tournament is required");
 

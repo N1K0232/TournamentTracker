@@ -1,6 +1,5 @@
 ﻿using OperationResults;
 using TournamentTracker.Shared.Models;
-using TournamentTracker.Shared.Models.Collections;
 using TournamentTracker.Shared.Models.Requests;
 
 namespace TournamentTracker.BusinessLayer.Services.Interfaces;
@@ -11,9 +10,9 @@ public interface IPeopleService
 
     Task<Result<Person>> GetAsync(Guid id);
 
-    Task<Result<ListResult<Person>>> GetListAsync(string name, string orderBy, int pageIndex, int itemsPerPage);
+    Task<Result<PaginatedList<Person>>> GetListAsync(string firstName, string lastName, string orderBy, int pageIndex, int itemsPerPage);
 
-    Task<Result<Person>> CreateAsync(SavePersonRequest request);
+    Task<Result<Person>> InsertAsync(SavePersonRequest request);
 
     Task<Result<Person>> UpdateAsync(Guid id, SavePersonRequest request);
 }

@@ -17,36 +17,29 @@ public class ImageService(IDataContext dataContext, IStorageProvider storageProv
 {
     public async Task<Result> DeleteAsync(Guid id)
     {
-        try
+        var image = await dataContext.GetAsync<Entities.Image>(id);
+        if (image is null)
         {
-            var image = await dataContext.GetAsync<Entities.Image>(id);
-            if (image is not null)
-            {
-                dataContext.Delete(image);
-                await dataContext.SaveAsync();
-                await storageProvider.DeleteAsync(image.Path);
-
-                return Result.Ok();
-            }
-
             return Result.Fail(FailureReasons.ItemNotFound, $"No image found with id {id}");
         }
-        catch (DbUpdateException ex)
-        {
-            return Result.Fail(FailureReasons.DatabaseError, ex);
-        }
+
+        dataContext.Delete(image);
+        await dataContext.SaveAsync();
+
+        await storageProvider.DeleteAsync(image.Path);
+        return Result.Ok();
     }
 
     public async Task<Result<Image>> GetAsync(Guid id)
     {
         var dbImage = await dataContext.GetAsync<Entities.Image>(id);
-        if (dbImage is not null)
+        if (dbImage is null)
         {
-            var image = mapper.Map<Image>(dbImage);
-            return image;
+            return Result.Fail(FailureReasons.ItemNotFound, $"No image found with id {id}");
         }
 
-        return Result.Fail(FailureReasons.ItemNotFound, $"No image found with id {id}");
+        var image = mapper.Map<Image>(dbImage);
+        return image;
     }
 
     public async Task<Result<IEnumerable<Image>>> GetListAsync()
@@ -61,50 +54,36 @@ public class ImageService(IDataContext dataContext, IStorageProvider storageProv
     public async Task<Result<StreamFileContent>> ReadContentAsync(Guid id)
     {
         var image = await dataContext.GetAsync<Entities.Image>(id);
-        if (image is not null)
+        if (image is null)
         {
-            var stream = await storageProvider.ReadAsStreamAsync(image.Path);
-            var contentType = MimeUtility.GetMimeMapping(image.Path);
-
-            if (stream is not null && contentType.HasValue())
-            {
-                var content = new StreamFileContent(stream, contentType);
-                return content;
-            }
-
-            return Result.Fail(FailureReasons.ItemNotFound, "No stream found");
+            return Result.Fail(FailureReasons.ItemNotFound, $"No image found");
         }
 
-        return Result.Fail(FailureReasons.ItemNotFound, $"No image found with id {id}");
+        var stream = await storageProvider.ReadAsStreamAsync(image.Path);
+        if (stream is null)
+        {
+            return Result.Fail(FailureReasons.ItemNotFound, $"No image found");
+        }
+
+        return new StreamFileContent(stream, MimeUtility.GetMimeMapping(image.Path));
     }
 
     public async Task<Result<Image>> UploadAsync(Stream stream, string fileName)
     {
-        try
-        {
-            var path = PathGenerator.CreatePath(fileName);
-            await storageProvider.SaveAsync(stream, path, true);
+        var path = PathGenerator.CreatePath(fileName);
+        await storageProvider.SaveAsync(stream, path);
 
-            var image = new Entities.Image
-            {
-                Path = path,
-                Length = stream.Length,
-                ContentType = MimeUtility.GetMimeMapping(fileName)
-            };
-
-            dataContext.Insert(image);
-            await dataContext.SaveAsync();
-
-            var createdImage = mapper.Map<Image>(image);
-            return createdImage;
-        }
-        catch (DbUpdateException ex)
+        var dbImage = new Entities.Image
         {
-            return Result.Fail(FailureReasons.DatabaseError, ex);
-        }
-        catch (IOException ex)
-        {
-            return Result.Fail(FailureReasons.ClientError, ex);
-        }
+            Path = path,
+            Length = stream.Length,
+            ContentType = MimeUtility.GetMimeMapping(fileName)
+        };
+
+        dataContext.Insert(dbImage);
+        await dataContext.SaveAsync();
+
+        var savedImage = mapper.Map<Image>(dbImage);
+        return savedImage;
     }
 }

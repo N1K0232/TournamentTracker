@@ -10,6 +10,6 @@ public class PrizeMapperProfile : Profile
     public PrizeMapperProfile()
     {
         CreateMap<Entities.Prize, Prize>();
-        CreateMap<SavePrizeRequest, Entities.Prize>();
+        CreateMap<SavePrizeRequest, Entities.Prize>().ForMember(p => p.Tournament, options => options.Ignore());
     }
 }

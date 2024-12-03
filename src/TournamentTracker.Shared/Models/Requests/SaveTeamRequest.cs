@@ -1,3 +1,3 @@
 ﻿namespace TournamentTracker.Shared.Models.Requests;
 
-public record class SaveTeamRequest(Guid TournamentId, string Name);
+public record class SaveTeamRequest(string Tournament, string Name);

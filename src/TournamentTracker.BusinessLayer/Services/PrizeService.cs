@@ -14,35 +14,28 @@ public class PrizeService(IDataContext dataContext, IMapper mapper) : IPrizeServ
 {
     public async Task<Result> DeleteAsync(Guid id)
     {
-        try
+        var prize = await dataContext.GetAsync<Entities.Prize>(id);
+        if (prize is null)
         {
-            var prize = await dataContext.GetAsync<Entities.Prize>(id);
-            if (prize is not null)
-            {
-                dataContext.Delete(prize);
-                await dataContext.SaveAsync();
-
-                return Result.Ok();
-            }
-
-            return Result.Fail(FailureReasons.ItemNotFound, $"No prize found with id {id}");
+            return Result.Fail(FailureReasons.ItemNotFound, "No prize found");
         }
-        catch (DbUpdateException ex)
-        {
-            return Result.Fail(FailureReasons.DatabaseError, ex);
-        }
+
+        dataContext.Delete(prize);
+        await dataContext.SaveAsync();
+
+        return Result.Ok();
     }
 
     public async Task<Result<Prize>> GetAsync(Guid id)
     {
         var dbPrize = await dataContext.GetAsync<Entities.Prize>(id);
-        if (dbPrize is not null)
+        if (dbPrize is null)
         {
-            var prize = mapper.Map<Prize>(dbPrize);
-            return prize;
+            return Result.Fail(FailureReasons.ItemNotFound, "No prize found");
         }
 
-        return Result.Fail(FailureReasons.ItemNotFound, $"No prize found with id {id}");
+        var prize = mapper.Map<Prize>(dbPrize);
+        return prize;
     }
 
     public async Task<Result<IEnumerable<Prize>>> GetListAsync()
@@ -54,44 +47,44 @@ public class PrizeService(IDataContext dataContext, IMapper mapper) : IPrizeServ
         return prizes;
     }
 
-    public async Task<Result<Prize>> CreateAsync(SavePrizeRequest request)
+    public async Task<Result<Prize>> InsertAsync(SavePrizeRequest request)
     {
-        try
+        var exists = await dataContext.GetData<Entities.Prize>().AnyAsync(p => p.Name == request.Name);
+        if (exists)
         {
-            var prize = mapper.Map<Entities.Prize>(request);
-            dataContext.Insert(prize);
-            await dataContext.SaveAsync();
+            return Result.Fail(FailureReasons.Conflict, "This prize already exists");
+        }
 
-            var createdPrize = mapper.Map<Prize>(prize);
-            return createdPrize;
-        }
-        catch (DbUpdateException ex)
+        var tournament = await dataContext.GetData<Entities.Tournament>().FirstOrDefaultAsync(t => t.Name == request.Tournament);
+        if (tournament is null)
         {
-            return Result.Fail(FailureReasons.DatabaseError, ex);
+            return Result.Fail(FailureReasons.ClientError, "This tournament does not exists");
         }
+
+        var prize = mapper.Map<Entities.Prize>(request);
+        prize.Tournament = tournament;
+
+        dataContext.Insert(prize);
+        await dataContext.SaveAsync();
+
+        var savedPrize = mapper.Map<Prize>(prize);
+        return savedPrize;
     }
 
     public async Task<Result<Prize>> UpdateAsync(Guid id, SavePrizeRequest request)
     {
-        try
+        var query = dataContext.GetData<Entities.Prize>(trackingChanges: false);
+        var dbPrize = await query.FirstOrDefaultAsync(p => p.Id == id);
+
+        if (dbPrize is null)
         {
-            var query = dataContext.GetData<Entities.Prize>(trackingChanges: false);
-            var prize = await query.FirstOrDefaultAsync(p => p.Id == id);
-
-            if (prize is not null)
-            {
-                mapper.Map(request, prize);
-                await dataContext.SaveAsync();
-
-                var savedPrize = mapper.Map<Prize>(prize);
-                return savedPrize;
-            }
-
-            return Result.Fail(FailureReasons.ItemNotFound, $"No prize found with id {id}");
+            return Result.Fail(FailureReasons.ItemNotFound, "No prize found");
         }
-        catch (DbUpdateException ex)
-        {
-            return Result.Fail(FailureReasons.DatabaseError, ex);
-        }
+
+        mapper.Map(request, dbPrize);
+        await dataContext.SaveAsync();
+
+        var savedPrize = mapper.Map<Prize>(dbPrize);
+        return savedPrize;
     }
 }

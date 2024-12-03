@@ -2,49 +2,46 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TournamentTracker.StorageProviders.Azure;
-using TournamentTracker.StorageProviders.Caching;
 using TournamentTracker.StorageProviders.FileSystem;
 
 namespace TournamentTracker.StorageProviders.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddAzureStorage(this IServiceCollection services, Action<AzureStorageOptionsBuilder> configuration)
+    public static IServiceCollection AddAzureStorage(this IServiceCollection services, Action<AzureStorageOptions> configuration)
     {
         ArgumentNullException.ThrowIfNull(services, nameof(services));
         ArgumentNullException.ThrowIfNull(configuration, nameof(configuration));
 
-        var builder = new AzureStorageOptionsBuilder();
-        configuration.Invoke(builder);
+        services.TryAddScoped(_ =>
+        {
+            var options = new AzureStorageOptions();
+            configuration.Invoke(options);
 
-        var options = builder.Build();
-        services.TryAddScoped(_ => options);
+            return options;
+        });
 
-        services.TryAddScoped(_ => new BlobServiceClient(options.ConnectionString));
-        services.AddStorageProvider<AzureStorageProvider>();
+        services.TryAddScoped(services =>
+        {
+            var options = services.GetRequiredService<AzureStorageOptions>();
+            return new BlobServiceClient(options.ConnectionString);
+        });
 
+        services.AddScoped<IStorageProvider, AzureStorageProvider>();
         return services;
     }
 
-    public static IServiceCollection AddFileSystemStorage(this IServiceCollection services, Action<FileSystemStorageOptionsBuilder> configuration)
+    public static IServiceCollection AddFileSystemStorage(this IServiceCollection services, Action<FileSystemStorageOptions> configuration)
     {
         ArgumentNullException.ThrowIfNull(services, nameof(services));
         ArgumentNullException.ThrowIfNull(configuration, nameof(configuration));
 
-        var builder = new FileSystemStorageOptionsBuilder();
-        configuration.Invoke(builder);
+        var options = new FileSystemStorageOptions();
+        configuration.Invoke(options);
 
-        services.TryAddScoped(_ => builder.Build());
-        services.TryAddScoped<FileSystemStorageClient>();
-        services.AddStorageProvider<FileSystemStorageProvider>();
+        services.TryAddSingleton(options);
+        services.AddScoped<IStorageProvider, FileSystemStorageProvider>();
 
         return services;
-    }
-
-    private static void AddStorageProvider<TStorageProvider>(this IServiceCollection services)
-        where TStorageProvider : class, IStorageProvider
-    {
-        services.TryAddSingleton<IStorageProviderCache, StorageProviderCache>();
-        services.TryAddScoped<IStorageProvider, TStorageProvider>();
     }
 }
