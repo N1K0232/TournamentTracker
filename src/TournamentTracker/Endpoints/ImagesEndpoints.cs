@@ -29,7 +29,7 @@ public class ImagesEndpoints : IEndpointRouteHandlerBuilder
             .Produces(StatusCodes.Status400BadRequest)
             .WithOpenApi();
 
-        imagesApiGroup.MapGet("{id:guid}/content", ReadContentAsync)
+        imagesApiGroup.MapGet("{id:guid}/stream", ReadContentAsync)
             .Produces(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status404NotFound)
