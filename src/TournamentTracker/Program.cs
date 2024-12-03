@@ -173,6 +173,7 @@ app.UseWhen(context => context.IsApiRequest(), builder =>
 {
     builder.UseExceptionHandler();
     builder.UseStatusCodePages();
+    builder.UseRateLimiter();
 });
 
 if (swagger.Enabled)
