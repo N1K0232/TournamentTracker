@@ -65,14 +65,23 @@ public class ImageService(IDataContext dataContext, IStorageProvider storageProv
             return Result.Fail(FailureReasons.ItemNotFound, $"No image found");
         }
 
-        return new StreamFileContent(stream, MimeUtility.GetMimeMapping(image.Path));
+        return new StreamFileContent(stream, image.ContentType);
     }
 
     public async Task<Result<Image>> UploadAsync(Stream stream, string fileName)
     {
         var path = PathGenerator.CreatePath(fileName);
-        await storageProvider.SaveAsync(stream, path);
+        var query = dataContext.GetData<Entities.Image>();
 
+        var databaseExists = await query.AnyAsync(i => i.Path == path);
+        var storageExists = await storageProvider.ExistsAsync(path);
+
+        if (databaseExists && storageExists)
+        {
+            return Result.Fail(FailureReasons.Conflict, "This image already exists");
+        }
+
+        await storageProvider.SaveAsync(stream, path);
         var dbImage = new Entities.Image
         {
             Path = path,
@@ -83,7 +92,6 @@ public class ImageService(IDataContext dataContext, IStorageProvider storageProv
         dataContext.Insert(dbImage);
         await dataContext.SaveAsync();
 
-        var savedImage = mapper.Map<Image>(dbImage);
-        return savedImage;
+        return mapper.Map<Image>(dbImage);
     }
 }
