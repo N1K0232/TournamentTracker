@@ -7,7 +7,13 @@
     <File Path="README.md" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/TournamentTracker/TournamentTracker.csproj" Id="5b6c7e51-1881-47a6-85e4-f7b4f9ec3d7a" />
     <Project Path="src/TournamentTracker.BusinessLayer/TournamentTracker.BusinessLayer.csproj" Id="979b2828-c8f6-4aba-84d2-7a97910c04ee" />
+    <Project Path="src/TournamentTracker.DataAccessLayer/TournamentTracker.DataAccessLayer.csproj" Id="dfd0d205-f2da-456e-b7ef-b888aec3b7e8" />
+    <Project Path="src/TournamentTracker.Database/TournamentTracker.Database.sqlproj" Id="d535b597-1128-4498-a163-89b50edd3e2b">
+      <Build />
+      <Deploy />
+    </Project>
+    <Project Path="src/TournamentTracker.Shared/TournamentTracker.Shared.csproj" Id="71829c62-6d69-40ef-8d9f-10c980b299d2" />
+    <Project Path="src/TournamentTracker/TournamentTracker.csproj" Id="5b6c7e51-1881-47a6-85e4-f7b4f9ec3d7a" />
   </Folder>
 </Solution>

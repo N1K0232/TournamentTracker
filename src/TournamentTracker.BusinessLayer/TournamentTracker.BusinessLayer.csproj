@@ -10,4 +10,8 @@
     <PackageReference Include="TinyHelpers" Version="3.3.9" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\TournamentTracker.DataAccessLayer\TournamentTracker.DataAccessLayer.csproj" />
+  </ItemGroup>
+
 </Project>
