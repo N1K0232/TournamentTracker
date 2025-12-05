@@ -1,9 +1,11 @@
 using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
 using MinimalHelpers.Routing;
 using TinyHelpers.AspNetCore.Extensions;
 using TinyHelpers.AspNetCore.OpenApi;
 using TinyHelpers.Json.Serialization;
 using TournamentTracker.BusinessLayer.Settings;
+using TournamentTracker.DataAccessLayer;
 using TournamentTracker.Extensions;
 using TournamentTracker.Swagger;
 
@@ -37,6 +39,12 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault;
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
     options.SerializerOptions.Converters.Add(new UtcDateTimeConverter());
+});
+
+builder.Services.AddDbContext<IDataContext, DataContext>(options =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("SqlConnection");
+    options.UseSqlServer(connectionString);
 });
 
 var app = builder.Build();
