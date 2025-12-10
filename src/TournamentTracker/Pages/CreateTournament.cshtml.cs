@@ -1,9 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace TournamentTracker.Pages;
 
-public class IndexModel : PageModel
+public class CreateTournamentModel : PageModel
 {
     public void OnGet()
     {

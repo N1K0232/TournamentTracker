@@ -1,0 +1,51 @@
+﻿@page "/TournamentDetails/{id:guid}"
+
+@model TournamentDetailsModel
+
+@{
+    ViewData["Title"] = "Tournament details";
+}
+
+<div x-data="tournaments" class="p-6 max-w-3xl mx-auto" x-init="getTournament('@RouteData.Values["id"]')" x-cloak>
+    <template x-if="isBusy">
+        <p class="text-lg">Loading...</p>
+    </template>
+    <div x-show="!isBusy && tournament" class="space-y-4">
+        <h1 class="text-3xl font-bold" x-text="tournament.name"></h1>
+        <div class="p-4 border rounded-lg shadow bg-white">
+            <p class="text-gray-700 text-lg">
+                🗓 Starts at:
+                <strong x-text="new Date(tournament.startsAt).toLocaleDateString()"></strong>
+            </p>
+            <p class="text-gray-700 text-lg">
+                🗓 Ends at:
+                <strong x-text="new Date(tournament.endsAt).toLocaleDateString()"></strong>
+            </p>
+            <p class="text-gray-700 text-lg mt-1">
+                💵 Entry Fee:
+                <strong>€ <span x-text="tournament.entryFee.toFixed(2)"></span></strong>
+            </p>
+            <div class="mt-3">
+                <p class="text-gray-500 italic">
+                    Prizes: incoming...
+                </p>
+            </div>
+        </div>
+        <button onclick="window.location.href='/'"
+                class="px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-700 transition">
+            ⬅ Return to list
+        </button>
+    </div>
+    <template x-if="errorMessage">
+        <p class="text-red-600 text-lg mt-4" x-text="errorMessage"></p>
+    </template>
+</div>
+
+@section Scripts
+{
+    <script>
+        document.addEventListener("alpine:init", () => {
+            tournamentDetail('@Thread.CurrentThread.CurrentUICulture.TwoLetterISOLanguageName');
+        });
+    </script>
+}

@@ -1,0 +1,44 @@
+﻿@page "/Tournaments/Created/{id:guid}"
+
+@model TournamentCreatedModel
+
+<div x-data="tournaments" x-init="getTournament('@RouteData.Values["id"]')" x-cloak class="max-w-xl mx-auto p-6">
+    <template x-if="isBusy">
+        <p>Loading...</p>
+    </template>
+    <div x-show="!isBusy && tournament" class="space-y-4">
+        <h1 class="text-3xl font-bold">Tournament created</h1>
+        <div class="p-4 border rounded shadow bg-white">
+            <p><strong>Name:</strong> <span x-text="tournament.name"></span></p>
+            <p><strong>Starts at:</strong> <span x-text="new Date(tournament.startsAt).toLocaleDateString()"></span></p>
+            <p><strong>Ends at:</strong> <span x-text="new Date(tournament.endsAt).toLocaleDateString()"></span></p>
+            <p><strong>Entry fee:</strong> € <span x-text="tournament.entryFee.toFixed(2)"></span></p>
+        </div>
+        <div class="flex gap-2 mt-4">
+            <button @@click ="edit"
+                    class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">
+                ✏ Edit
+            </button>
+            <button @@click ="remove"
+                    class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                🗑 Delete
+            </button>
+            <button onclick="window.location.href='/'"
+                    class="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-800 ml-auto">
+                ⬅ Back to home
+            </button>
+        </div>
+    </div>
+    <template x-if="errorMessage">
+        <p class="text-red-600" x-text="errorMessage"></p>
+    </template>
+</div>
+
+@section Scripts
+{
+    <script>
+        document.addEventListener("alpine:init", () => {
+            tournamentDetail('@Thread.CurrentThread.CurrentUICulture.TwoLetterISOLanguageName');
+        });
+    </script>
+}
