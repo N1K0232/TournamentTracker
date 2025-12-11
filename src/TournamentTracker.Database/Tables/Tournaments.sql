@@ -5,8 +5,8 @@
     [EntryFee]          DECIMAL (6, 2)      NOT NULL,
     [StartsAt]          DATETIMEOFFSET (7)  NOT NULL,
     [EndsAt]            DATETIMEOFFSET (7)  NOT NULL,
-    [CreatedAt]         DATETIME2           NOT NULL,
-    [LastModifiedAt]    DATETIME2           NULL
+    [CreatedAt]         DATETIME2 (7)       NOT NULL,
+    [LastModifiedAt]    DATETIME2 (7)       NULL
 );
 
 GO

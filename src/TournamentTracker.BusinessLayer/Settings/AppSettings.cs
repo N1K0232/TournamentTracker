@@ -6,5 +6,9 @@ public class AppSettings
 
     public string ApplicationDescription { get; init; } = "A C# web application to handle tournament subscription and tournament matches";
 
+    public string? SenderEmail { get; init; }
+
+    public string? SenderName { get; init; }
+
     public string[] SupportedCultures { get; init; } = [];
 }

@@ -11,4 +11,6 @@ public class Tournament : BaseEntity
     public DateTimeOffset StartsAt { get; set; }
 
     public DateTimeOffset EndsAt { get; set; }
+
+    public virtual ICollection<Team> Teams { get; set; } = [];
 }

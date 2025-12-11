@@ -60,6 +60,8 @@
   </ItemGroup>
   <ItemGroup>
     <Build Include="Tables\Tournaments.sql" />
+    <Build Include="Tables\People.sql" />
+    <Build Include="Tables\Teams.sql" />
   </ItemGroup>
   <ItemGroup>
     <None Include="TournamentTracker.Database.publish.xml" />

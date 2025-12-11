@@ -4,9 +4,13 @@ using Microsoft.EntityFrameworkCore;
 using MinimalHelpers.Routing;
 using MinimalHelpers.Validation;
 using OperationResults.AspNetCore.Http;
+using SimpleTransit;
 using TinyHelpers.AspNetCore.Extensions;
 using TinyHelpers.AspNetCore.OpenApi;
 using TinyHelpers.Json.Serialization;
+using TournamentTracker.BusinessLayer.Clients;
+using TournamentTracker.BusinessLayer.Clients.Interfaces;
+using TournamentTracker.BusinessLayer.Notifications;
 using TournamentTracker.BusinessLayer.Services;
 using TournamentTracker.BusinessLayer.Settings;
 using TournamentTracker.BusinessLayer.Validation;
@@ -66,6 +70,12 @@ builder.Services.AddDbContext<IDataContext, DataContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("SqlConnection");
     options.UseSqlServer(connectionString);
+});
+
+builder.Services.AddSingleton<IEmailClient, EmailClient>();
+builder.Services.AddSimpleTransit(options =>
+{
+    options.RegisterServicesFromAssemblyContaining<PersonEmailNotificationHandler>();
 });
 
 builder.Services.Scan(scan => scan.FromAssemblyOf<TournamentService>()
